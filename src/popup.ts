@@ -43,7 +43,7 @@ async function loadPopupState(): Promise<{
 
 function getTrackingStatusCopy(runtimeState: RuntimeState, hasTrackedTime: boolean): string {
   if (runtimeState.activeSession) {
-    return "Currently tracking the active YouTube tab.";
+    return "Currently tracking a selected YouTube tab.";
   }
 
   if (runtimeState.idleState === "locked") {
@@ -54,11 +54,9 @@ function getTrackingStatusCopy(runtimeState: RuntimeState, hasTrackedTime: boole
     return "Paused because you are idle.";
   }
 
-  if (runtimeState.focusedWindowId === null) {
-    return "Paused because the browser window is not focused.";
-  }
-
-  return hasTrackedTime ? "Open YouTube in the active tab to resume counting." : "Open YouTube to start tracking.";
+  return hasTrackedTime
+    ? "Select a YouTube tab in any browser window to resume counting."
+    : "Open YouTube in a selected tab to start tracking.";
 }
 
 function renderPopup(runtimeState: RuntimeState, stats: StoredStats): void {

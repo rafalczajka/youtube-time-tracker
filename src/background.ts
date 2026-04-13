@@ -1,7 +1,7 @@
 import { reconcileSession } from "./shared/session";
 import { appendTrackedDuration, loadRuntimeState, saveRuntimeState } from "./shared/storage";
 import type { CountableContext, IdleState } from "./shared/types";
-import { isYouTubeUrl } from "./shared/youtube";
+import { extractActiveYouTubeContexts, pickCountableContext } from "./shared/youtube";
 
 const HEARTBEAT_ALARM = "stats-heartbeat";
 const HEARTBEAT_MINUTES = 0.5;
@@ -45,46 +45,21 @@ async function getIdleState(): Promise<IdleState> {
 }
 
 async function getCurrentContext(): Promise<{
-  context: CountableContext | null;
+  contexts: CountableContext[];
   focusedWindowId: number | null;
   idleState: IdleState;
 }> {
-  const [focusedWindowId, idleState] = await Promise.all([getFocusedWindowId(), getIdleState()]);
-
-  if (focusedWindowId === null || idleState !== "active") {
-    return {
-      context: null,
-      focusedWindowId,
-      idleState
-    };
-  }
-
-  const [activeTab] = await chrome.tabs.query({
-    active: true,
-    windowId: focusedWindowId
-  });
-
-  if (!activeTab || typeof activeTab.id !== "number" || typeof activeTab.windowId !== "number") {
-    return {
-      context: null,
-      focusedWindowId,
-      idleState
-    };
-  }
-
-  if (!isYouTubeUrl(activeTab.url ?? null)) {
-    return {
-      context: null,
-      focusedWindowId,
-      idleState
-    };
-  }
+  const [focusedWindowId, idleState, activeTabs] = await Promise.all([
+    getFocusedWindowId(),
+    getIdleState(),
+    chrome.tabs.query({
+      active: true,
+      windowType: "normal"
+    })
+  ]);
 
   return {
-    context: {
-      tabId: activeTab.id,
-      windowId: activeTab.windowId
-    },
+    contexts: extractActiveYouTubeContexts(activeTabs),
     focusedWindowId,
     idleState
   };
@@ -92,13 +67,14 @@ async function getCurrentContext(): Promise<{
 
 async function reconcileCurrentBrowserState(reason: string): Promise<void> {
   const nowMs = Date.now();
-  const [runtimeState, browserState] = await Promise.all([
-    loadRuntimeState(nowMs),
-    getCurrentContext()
-  ]);
+  const [runtimeState, browserState] = await Promise.all([loadRuntimeState(nowMs), getCurrentContext()]);
+  const context =
+    browserState.idleState === "active"
+      ? pickCountableContext(browserState.contexts, runtimeState.activeSession, browserState.focusedWindowId)
+      : null;
   const result = reconcileSession({
     session: runtimeState.activeSession,
-    context: browserState.context,
+    context,
     nowMs
   });
 
