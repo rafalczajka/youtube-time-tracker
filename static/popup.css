@@ -89,6 +89,42 @@ body {
   line-height: 1.45;
 }
 
+.status-pill {
+  margin-top: 16px;
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(19, 37, 46, 0.08);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.status-pill[data-state="active"] {
+  border-color: rgba(19, 92, 88, 0.22);
+  background: rgba(19, 92, 88, 0.1);
+  color: var(--accent);
+}
+
+.status-pill[data-state="inactive"] {
+  border-color: rgba(201, 106, 43, 0.18);
+  background: rgba(201, 106, 43, 0.08);
+  color: #9a5a2d;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.36);
+}
+
 .metrics-grid {
   margin-top: 18px;
   display: grid;
