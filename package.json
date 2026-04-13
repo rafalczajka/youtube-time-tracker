@@ -1,0 +1,23 @@
+{
+  "name": "browser-time-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension that tracks active time per domain.",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "test": "tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "tldts": "^7.0.17"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.31",
+    "@types/node": "^24.0.0",
+    "chokidar": "^4.0.3",
+    "esbuild": "^0.25.4",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}
