@@ -1,7 +1,7 @@
-import { getDomainKey } from "./shared/domain";
 import { reconcileSession } from "./shared/session";
 import { appendTrackedDuration, loadRuntimeState, saveRuntimeState } from "./shared/storage";
 import type { CountableContext, IdleState } from "./shared/types";
+import { isYouTubeUrl } from "./shared/youtube";
 
 const HEARTBEAT_ALARM = "stats-heartbeat";
 const HEARTBEAT_MINUTES = 0.5;
@@ -72,9 +72,7 @@ async function getCurrentContext(): Promise<{
     };
   }
 
-  const domainKey = getDomainKey(activeTab.url ?? null);
-
-  if (!domainKey) {
+  if (!isYouTubeUrl(activeTab.url ?? null)) {
     return {
       context: null,
       focusedWindowId,
@@ -85,8 +83,7 @@ async function getCurrentContext(): Promise<{
   return {
     context: {
       tabId: activeTab.id,
-      windowId: activeTab.windowId,
-      domainKey
+      windowId: activeTab.windowId
     },
     focusedWindowId,
     idleState
@@ -106,11 +103,7 @@ async function reconcileCurrentBrowserState(reason: string): Promise<void> {
   });
 
   if (result.flushedDuration) {
-    await appendTrackedDuration(
-      result.flushedDuration.domainKey,
-      result.flushedDuration.startMs,
-      result.flushedDuration.endMs
-    );
+    await appendTrackedDuration(result.flushedDuration.startMs, result.flushedDuration.endMs);
   }
 
   await saveRuntimeState({
@@ -120,7 +113,7 @@ async function reconcileCurrentBrowserState(reason: string): Promise<void> {
     updatedAtMs: nowMs
   });
 
-  console.debug(`Reconciled session after ${reason}.`);
+  console.debug(`Reconciled YouTube session after ${reason}.`);
 }
 
 function scheduleReconcile(reason: string) {

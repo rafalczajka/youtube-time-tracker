@@ -3,47 +3,41 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Browser Time Tracker</title>
+    <title>YouTube Time Tracker</title>
     <link rel="stylesheet" href="./popup.css" />
   </head>
   <body>
     <main class="popup-shell">
       <section class="hero-card">
-        <p class="eyebrow">Browser Time Tracker</p>
+        <p class="eyebrow">YouTube Time Tracker</p>
         <div class="hero-row">
           <div>
-            <h1>Top domains</h1>
-            <p class="hero-copy">Active-tab time today, with lifetime totals on the side.</p>
-          </div>
-          <div class="hero-metric">
-            <span class="hero-metric-label">Today</span>
-            <strong id="today-total">0s</strong>
+            <h1>YouTube focus time</h1>
+            <p class="hero-copy">Counts time only while YouTube is the active tab in the focused browser window.</p>
           </div>
         </div>
+        <div class="metrics-grid">
+          <article class="metric-card">
+            <span class="metric-label">Today</span>
+            <strong id="today-total">0s</strong>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">Total</span>
+            <strong id="lifetime-total">0s</strong>
+          </article>
+        </div>
         <div class="hero-meta">
-          <span id="domains-tracked">0 domains tracked</span>
+          <span id="tracking-status">Open YouTube to start tracking</span>
           <span id="updated-at">Waiting for data</span>
         </div>
       </section>
 
-      <section class="list-card">
-        <div class="list-header">
-          <span>Domain</span>
-          <span>Today</span>
-          <span>Total</span>
-        </div>
-        <div id="domain-list" class="domain-list" aria-live="polite"></div>
-        <template id="domain-row-template">
-          <article class="domain-row">
-            <div class="domain-rank"></div>
-            <div class="domain-main">
-              <div class="domain-name"></div>
-              <div class="domain-subtitle">Active tab only</div>
-            </div>
-            <div class="domain-time domain-time-today"></div>
-            <div class="domain-time domain-time-total"></div>
-          </article>
-        </template>
+      <section class="note-card">
+        <h2>How it works</h2>
+        <p>
+          Time is added only when a YouTube page is active, the browser window has focus, and Chrome reports you as
+          active.
+        </p>
       </section>
     </main>
 

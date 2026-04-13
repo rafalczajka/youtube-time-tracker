@@ -1,13 +1,10 @@
-import { buildDomainRows, getTodayTotalMs, normalizeStoredStats, STATS_STORAGE_KEY } from "./shared/stats";
+import { normalizeStoredStats, STATS_STORAGE_KEY } from "./shared/stats";
 import { formatDuration } from "./shared/time";
-import type { DomainStatsRow, StoredStats } from "./shared/types";
+import type { StoredStats } from "./shared/types";
 
-const MAX_ROWS = 10;
-
-const domainListElement = document.querySelector<HTMLDivElement>("#domain-list");
-const templateElement = document.querySelector<HTMLTemplateElement>("#domain-row-template");
 const todayTotalElement = document.querySelector<HTMLElement>("#today-total");
-const domainsTrackedElement = document.querySelector<HTMLElement>("#domains-tracked");
+const lifetimeTotalElement = document.querySelector<HTMLElement>("#lifetime-total");
+const trackingStatusElement = document.querySelector<HTMLElement>("#tracking-status");
 const updatedAtElement = document.querySelector<HTMLElement>("#updated-at");
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
@@ -16,7 +13,7 @@ const timeFormatter = new Intl.DateTimeFormat(undefined, {
 });
 
 function ensurePopupElements(): void {
-  if (!domainListElement || !templateElement || !todayTotalElement || !domainsTrackedElement || !updatedAtElement) {
+  if (!todayTotalElement || !lifetimeTotalElement || !trackingStatusElement || !updatedAtElement) {
     throw new Error("Popup elements are missing from popup.html.");
   }
 }
@@ -26,68 +23,23 @@ async function loadStats(): Promise<StoredStats> {
   return normalizeStoredStats(result[STATS_STORAGE_KEY], Date.now());
 }
 
-function renderEmptyState(): void {
-  if (!domainListElement) {
+function renderStats(stats: StoredStats): void {
+  if (!todayTotalElement || !lifetimeTotalElement || !trackingStatusElement || !updatedAtElement) {
     return;
   }
 
-  const emptyState = document.createElement("article");
-  emptyState.className = "empty-state";
-  emptyState.textContent =
-    "No tracked browsing time yet. Open a website in the active browser window and this list will start filling in.";
-
-  domainListElement.replaceChildren(emptyState);
-}
-
-function createRow(row: DomainStatsRow, index: number): HTMLElement {
-  if (!templateElement) {
-    throw new Error("Popup row template is missing.");
-  }
-
-  const fragment = templateElement.content.cloneNode(true) as DocumentFragment;
-  const rowElement = fragment.querySelector<HTMLElement>(".domain-row");
-  const rankElement = fragment.querySelector<HTMLElement>(".domain-rank");
-  const nameElement = fragment.querySelector<HTMLElement>(".domain-name");
-  const todayElement = fragment.querySelector<HTMLElement>(".domain-time-today");
-  const totalElement = fragment.querySelector<HTMLElement>(".domain-time-total");
-
-  if (!rowElement || !rankElement || !nameElement || !todayElement || !totalElement) {
-    throw new Error("Popup row markup is incomplete.");
-  }
-
-  rankElement.textContent = `${index + 1}`;
-  nameElement.textContent = row.domain;
-  rowElement.title = `${row.domain}: ${formatDuration(row.todayMs)} today, ${formatDuration(row.totalMs)} total`;
-  todayElement.textContent = formatDuration(row.todayMs);
-  totalElement.textContent = formatDuration(row.totalMs);
-
-  return rowElement;
-}
-
-function renderRows(stats: StoredStats): void {
-  if (!domainListElement || !todayTotalElement || !domainsTrackedElement || !updatedAtElement) {
-    return;
-  }
-
-  const rows = buildDomainRows(stats, Date.now()).slice(0, MAX_ROWS);
-  const totalTrackedDomains = Object.keys(stats.totalsByDomain).length;
-
-  todayTotalElement.textContent = formatDuration(getTodayTotalMs(stats, Date.now()));
-  domainsTrackedElement.textContent = `${totalTrackedDomains} domain${totalTrackedDomains === 1 ? "" : "s"} tracked`;
-  updatedAtElement.textContent =
-    totalTrackedDomains === 0 ? "Waiting for data" : `Updated ${timeFormatter.format(stats.updatedAtMs)}`;
-
-  if (rows.length === 0) {
-    renderEmptyState();
-    return;
-  }
-
-  domainListElement.replaceChildren(...rows.map((row, index) => createRow(row, index)));
+  const hasTrackedTime = stats.totalMs > 0 || stats.today.durationMs > 0;
+  todayTotalElement.textContent = formatDuration(stats.today.durationMs);
+  lifetimeTotalElement.textContent = formatDuration(stats.totalMs);
+  trackingStatusElement.textContent = hasTrackedTime
+    ? "Tracking active YouTube tab time"
+    : "Open YouTube to start tracking";
+  updatedAtElement.textContent = hasTrackedTime ? `Updated ${timeFormatter.format(stats.updatedAtMs)}` : "Waiting for data";
 }
 
 async function refreshPopup(): Promise<void> {
   const stats = await loadStats();
-  renderRows(stats);
+  renderStats(stats);
 }
 
 ensurePopupElements();

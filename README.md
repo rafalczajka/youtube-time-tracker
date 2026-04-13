@@ -1,6 +1,6 @@
-# Browser Time Tracker
+# YouTube Time Tracker
 
-Chrome extension that tracks active browsing time per domain and shows the current top websites in the popup.
+Chrome extension that tracks active browsing time spent on YouTube and shows a compact today/total summary in the popup.
 
 ## Stack
 
@@ -43,4 +43,4 @@ npm test
 4. Click `Load unpacked`.
 5. Select the `dist/` directory.
 
-The popup shows the top 10 domains sorted by today's active-tab time, with lifetime totals displayed alongside.
+The popup shows only YouTube time, counted when a YouTube tab is active in the focused browser window and Chrome reports you as active.

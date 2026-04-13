@@ -8,20 +8,17 @@ test("flushes elapsed time and keeps the session open on heartbeat for the same 
     session: {
       tabId: 7,
       windowId: 1,
-      domainKey: "google.com",
       startedAtMs: 1_000,
       lastFlushedAtMs: 1_000
     },
     context: {
       tabId: 7,
-      windowId: 1,
-      domainKey: "google.com"
+      windowId: 1
     },
     nowMs: 4_000
   });
 
   assert.deepEqual(result.flushedDuration, {
-    domainKey: "google.com",
     startMs: 1_000,
     endMs: 4_000
   });
@@ -34,7 +31,6 @@ test("flushes and closes the session when focus or active context disappears", (
     session: {
       tabId: 7,
       windowId: 1,
-      domainKey: "google.com",
       startedAtMs: 1_000,
       lastFlushedAtMs: 2_000
     },
@@ -43,39 +39,34 @@ test("flushes and closes the session when focus or active context disappears", (
   });
 
   assert.deepEqual(result.flushedDuration, {
-    domainKey: "google.com",
     startMs: 2_000,
     endMs: 5_500
   });
   assert.equal(result.nextSession, null);
 });
 
-test("flushes the old session and starts a new one when the active tab changes", () => {
+test("flushes the old session and starts a new one when switching to another YouTube tab", () => {
   const result = reconcileSession({
     session: {
       tabId: 7,
       windowId: 1,
-      domainKey: "google.com",
       startedAtMs: 1_000,
       lastFlushedAtMs: 3_000
     },
     context: {
       tabId: 11,
-      windowId: 1,
-      domainKey: "github.com"
+      windowId: 1
     },
     nowMs: 8_000
   });
 
   assert.deepEqual(result.flushedDuration, {
-    domainKey: "google.com",
     startMs: 3_000,
     endMs: 8_000
   });
   assert.deepEqual(result.nextSession, {
     tabId: 11,
     windowId: 1,
-    domainKey: "github.com",
     startedAtMs: 8_000,
     lastFlushedAtMs: 8_000
   });

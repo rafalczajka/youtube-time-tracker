@@ -1,35 +1,24 @@
 import { splitDurationAcrossDays, toLocalDateKey } from "./time";
-import type { DomainStatsRow, StoredStats } from "./types";
+import type { StoredStats } from "./types";
 
 export const STATS_STORAGE_KEY = "stats";
-export const STATS_VERSION = 1 as const;
+export const STATS_VERSION = 2 as const;
 
-function sanitizeDurationRecord(value: unknown): Record<string, number> {
-  if (!value || typeof value !== "object") {
-    return {};
+function sanitizeDuration(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return 0;
   }
 
-  const record = value as Record<string, unknown>;
-  const nextRecord: Record<string, number> = {};
-
-  for (const [domain, rawValue] of Object.entries(record)) {
-    if (!domain || typeof rawValue !== "number" || !Number.isFinite(rawValue) || rawValue <= 0) {
-      continue;
-    }
-
-    nextRecord[domain] = Math.round(rawValue);
-  }
-
-  return nextRecord;
+  return Math.round(value);
 }
 
 export function createEmptyStats(nowMs = Date.now()): StoredStats {
   return {
     version: STATS_VERSION,
-    totalsByDomain: {},
+    totalMs: 0,
     today: {
       date: toLocalDateKey(nowMs),
-      byDomain: {}
+      durationMs: 0
     },
     updatedAtMs: nowMs
   };
@@ -44,17 +33,22 @@ export function normalizeStoredStats(value: unknown, nowMs = Date.now()): Stored
 
   const currentDate = toLocalDateKey(nowMs);
   const candidate = value as {
-    totalsByDomain?: unknown;
+    version?: unknown;
+    totalMs?: unknown;
     today?: {
       date?: unknown;
-      byDomain?: unknown;
+      durationMs?: unknown;
     };
     updatedAtMs?: unknown;
   };
 
-  const totalsByDomain = sanitizeDurationRecord(candidate.totalsByDomain);
+  if (candidate.version !== STATS_VERSION) {
+    return emptyStats;
+  }
+
+  const totalMs = sanitizeDuration(candidate.totalMs);
   const storedDate = typeof candidate.today?.date === "string" ? candidate.today.date : currentDate;
-  const todayByDomain = storedDate === currentDate ? sanitizeDurationRecord(candidate.today?.byDomain) : {};
+  const todayDurationMs = storedDate === currentDate ? sanitizeDuration(candidate.today?.durationMs) : 0;
   const updatedAtMs =
     typeof candidate.updatedAtMs === "number" && Number.isFinite(candidate.updatedAtMs)
       ? candidate.updatedAtMs
@@ -62,79 +56,47 @@ export function normalizeStoredStats(value: unknown, nowMs = Date.now()): Stored
 
   return {
     version: STATS_VERSION,
-    totalsByDomain,
+    totalMs,
     today: {
       date: currentDate,
-      byDomain: todayByDomain
+      durationMs: todayDurationMs
     },
     updatedAtMs
   };
 }
 
-export function applyDurationToStats(
-  statsValue: unknown,
-  domainKey: string,
-  startMs: number,
-  endMs: number
-): StoredStats {
+export function applyDurationToStats(statsValue: unknown, startMs: number, endMs: number): StoredStats {
   const nextStats = normalizeStoredStats(statsValue, endMs);
 
-  if (!domainKey || endMs <= startMs) {
+  if (endMs <= startMs) {
     return {
       ...nextStats,
       updatedAtMs: endMs
     };
   }
 
-  const totalsByDomain = { ...nextStats.totalsByDomain };
-  const todayByDomain = { ...nextStats.today.byDomain };
+  let totalMs = nextStats.totalMs;
+  let todayDurationMs = nextStats.today.durationMs;
 
   for (const segment of splitDurationAcrossDays(startMs, endMs)) {
     if (segment.durationMs <= 0) {
       continue;
     }
 
-    totalsByDomain[domainKey] = (totalsByDomain[domainKey] ?? 0) + segment.durationMs;
+    totalMs += segment.durationMs;
 
     if (segment.date === nextStats.today.date) {
-      todayByDomain[domainKey] = (todayByDomain[domainKey] ?? 0) + segment.durationMs;
+      todayDurationMs += segment.durationMs;
     }
   }
 
   return {
     ...nextStats,
-    totalsByDomain,
+    totalMs,
     today: {
       date: nextStats.today.date,
-      byDomain: todayByDomain
+      durationMs: todayDurationMs
     },
     updatedAtMs: endMs
   };
-}
-
-export function buildDomainRows(statsValue: unknown, nowMs = Date.now()): DomainStatsRow[] {
-  const stats = normalizeStoredStats(statsValue, nowMs);
-  const domainKeys = new Set([
-    ...Object.keys(stats.totalsByDomain),
-    ...Object.keys(stats.today.byDomain)
-  ]);
-
-  return [...domainKeys]
-    .map((domain) => ({
-      domain,
-      todayMs: stats.today.byDomain[domain] ?? 0,
-      totalMs: stats.totalsByDomain[domain] ?? 0
-    }))
-    .sort(
-      (left, right) =>
-        right.todayMs - left.todayMs ||
-        right.totalMs - left.totalMs ||
-        left.domain.localeCompare(right.domain)
-    );
-}
-
-export function getTodayTotalMs(statsValue: unknown, nowMs = Date.now()): number {
-  const stats = normalizeStoredStats(statsValue, nowMs);
-
-  return Object.values(stats.today.byDomain).reduce((sum, current) => sum + current, 0);
 }

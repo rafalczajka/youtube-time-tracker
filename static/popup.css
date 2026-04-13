@@ -19,8 +19,8 @@
 
 body {
   margin: 0;
-  min-width: 420px;
-  min-height: 520px;
+  min-width: 380px;
+  min-height: 340px;
   font-family: "Aptos", "Segoe UI Variable", "Segoe UI", sans-serif;
   background:
     radial-gradient(circle at top left, rgba(201, 106, 43, 0.22), transparent 35%),
@@ -36,7 +36,7 @@ body {
 }
 
 .hero-card,
-.list-card {
+.note-card {
   border: 1px solid var(--border);
   border-radius: 24px;
   background: var(--card);
@@ -71,8 +71,7 @@ body {
 
 .hero-row {
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   align-items: flex-start;
 }
 
@@ -90,26 +89,33 @@ body {
   line-height: 1.45;
 }
 
-.hero-metric {
-  min-width: 92px;
-  padding: 12px;
+.metrics-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-card {
+  padding: 14px;
   border-radius: 18px;
   background: var(--card-strong);
   border: 1px solid rgba(19, 92, 88, 0.12);
-  text-align: right;
 }
 
-.hero-metric-label {
+.metric-label {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
 
-.hero-metric strong {
-  font-size: 22px;
+.metric-card strong {
+  display: block;
+  font-size: 24px;
+  color: var(--accent);
 }
 
 .hero-meta {
@@ -121,96 +127,18 @@ body {
   color: var(--text-muted);
 }
 
-.list-card {
-  padding: 8px;
+.note-card {
+  padding: 18px;
 }
 
-.list-header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 72px 72px;
-  gap: 12px;
-  padding: 10px 14px 12px 52px;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.note-card h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.note-card p {
+  margin: 0;
   color: var(--text-muted);
-}
-
-.domain-list {
-  display: grid;
-  gap: 8px;
-}
-
-.domain-row,
-.empty-state {
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 72px 72px;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(19, 37, 46, 0.08);
-}
-
-.domain-row {
-  transition: transform 120ms ease, background-color 120ms ease;
-}
-
-.domain-row:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.82);
-}
-
-.domain-rank {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.domain-main {
-  min-width: 0;
-}
-
-.domain-name {
-  font-size: 14px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.domain-subtitle {
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.domain-time {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
   font-size: 13px;
-}
-
-.domain-time-today {
-  font-weight: 700;
-  color: var(--accent);
-}
-
-.domain-time-total {
-  color: var(--text-muted);
-}
-
-.empty-state {
-  grid-template-columns: 1fr;
-  padding: 20px 16px;
-  text-align: center;
-  color: var(--text-muted);
   line-height: 1.5;
 }

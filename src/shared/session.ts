@@ -12,11 +12,7 @@ interface ReconcileSessionInput {
 }
 
 function sameContext(session: ActiveSession, context: CountableContext): boolean {
-  return (
-    session.tabId === context.tabId &&
-    session.windowId === context.windowId &&
-    session.domainKey === context.domainKey
-  );
+  return session.tabId === context.tabId && session.windowId === context.windowId;
 }
 
 function createSession(context: CountableContext, nowMs: number): ActiveSession {
@@ -35,7 +31,6 @@ function buildFlush(session: ActiveSession, nowMs: number): SessionFlush | null 
   }
 
   return {
-    domainKey: session.domainKey,
     startMs: session.lastFlushedAtMs,
     endMs: effectiveNowMs
   };

@@ -15,8 +15,6 @@ function sanitizeActiveSession(value: unknown): ActiveSession | null {
     !Number.isFinite(candidate.tabId) ||
     typeof candidate.windowId !== "number" ||
     !Number.isFinite(candidate.windowId) ||
-    typeof candidate.domainKey !== "string" ||
-    !candidate.domainKey ||
     typeof candidate.startedAtMs !== "number" ||
     !Number.isFinite(candidate.startedAtMs) ||
     typeof candidate.lastFlushedAtMs !== "number" ||
@@ -28,7 +26,6 @@ function sanitizeActiveSession(value: unknown): ActiveSession | null {
   return {
     tabId: candidate.tabId,
     windowId: candidate.windowId,
-    domainKey: candidate.domainKey,
     startedAtMs: candidate.startedAtMs,
     lastFlushedAtMs: candidate.lastFlushedAtMs
   };
@@ -80,13 +77,9 @@ export async function loadStoredStats(nowMs = Date.now()): Promise<StoredStats> 
   return normalizeStoredStats(result[STATS_STORAGE_KEY], nowMs);
 }
 
-export async function appendTrackedDuration(
-  domainKey: string,
-  startMs: number,
-  endMs: number
-): Promise<StoredStats> {
+export async function appendTrackedDuration(startMs: number, endMs: number): Promise<StoredStats> {
   const result = await chrome.storage.local.get(STATS_STORAGE_KEY);
-  const nextStats = applyDurationToStats(result[STATS_STORAGE_KEY], domainKey, startMs, endMs);
+  const nextStats = applyDurationToStats(result[STATS_STORAGE_KEY], startMs, endMs);
 
   await chrome.storage.local.set({
     [STATS_STORAGE_KEY]: nextStats

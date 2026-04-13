@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Browser Time Tracker",
+  "name": "YouTube Time Tracker",
   "version": "0.1.0",
-  "description": "Tracks active time per domain and shows your top websites.",
+  "description": "Tracks active time spent on YouTube in the active browser tab.",
   "minimum_chrome_version": "120",
   "permissions": ["tabs", "storage", "alarms", "idle"],
   "background": {
@@ -11,6 +11,6 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Browser Time Tracker"
+    "default_title": "YouTube Time Tracker"
   }
 }

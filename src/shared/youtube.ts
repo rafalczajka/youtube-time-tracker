@@ -1,5 +1,3 @@
-import { getDomain } from "tldts";
-
 const TRACKABLE_PROTOCOLS = new Set(["http:", "https:"]);
 
 export function isTrackableUrl(urlValue: string | null | undefined): boolean {
@@ -15,14 +13,13 @@ export function isTrackableUrl(urlValue: string | null | undefined): boolean {
   }
 }
 
-export function getDomainKey(urlValue: string | null | undefined): string | null {
+export function isYouTubeUrl(urlValue: string | null | undefined): boolean {
   if (!isTrackableUrl(urlValue)) {
-    return null;
+    return false;
   }
 
   const url = new URL(urlValue as string);
   const hostname = url.hostname.toLowerCase();
-  const registrableDomain = getDomain(hostname, { allowPrivateDomains: true });
 
-  return (registrableDomain ?? hostname).toLowerCase();
+  return hostname === "youtube.com" || hostname.endsWith(".youtube.com");
 }
