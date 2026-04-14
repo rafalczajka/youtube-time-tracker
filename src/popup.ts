@@ -1,14 +1,15 @@
-import { STATS_STORAGE_KEY } from "./shared/stats";
+import { STATS_STORAGE_KEY, getRecentDailySeries, getTodayDurationMs, hasTrackedHistory } from "./shared/stats";
 import { loadRuntimeState, loadStoredStats } from "./shared/storage";
 import { formatDuration } from "./shared/time";
-import type { RuntimeState, StoredStats } from "./shared/types";
+import type { DailyChartPoint, RuntimeState, StoredStats } from "./shared/types";
 
 const countingIndicatorElement = document.querySelector<HTMLElement>("#counting-indicator");
 const countingLabelElement = document.querySelector<HTMLElement>("#counting-label");
 const todayTotalElement = document.querySelector<HTMLElement>("#today-total");
-const lifetimeTotalElement = document.querySelector<HTMLElement>("#lifetime-total");
 const trackingStatusElement = document.querySelector<HTMLElement>("#tracking-status");
 const updatedAtElement = document.querySelector<HTMLElement>("#updated-at");
+const historyChartElement = document.querySelector<HTMLElement>("#history-chart");
+const chartEmptyStateElement = document.querySelector<HTMLElement>("#chart-empty-state");
 
 const timeFormatter = new Intl.DateTimeFormat(undefined, {
   hour: "numeric",
@@ -20,9 +21,10 @@ function ensurePopupElements(): void {
     !countingIndicatorElement ||
     !countingLabelElement ||
     !todayTotalElement ||
-    !lifetimeTotalElement ||
     !trackingStatusElement ||
-    !updatedAtElement
+    !updatedAtElement ||
+    !historyChartElement ||
+    !chartEmptyStateElement
   ) {
     throw new Error("Popup elements are missing from popup.html.");
   }
@@ -59,27 +61,78 @@ function getTrackingStatusCopy(runtimeState: RuntimeState, hasTrackedTime: boole
     : "Open YouTube in a selected tab to start tracking.";
 }
 
+function createChartColumn(point: DailyChartPoint, maxDurationMs: number): HTMLElement {
+  const minBarHeightPx = 8;
+  const maxBarHeightPx = 120;
+  const columnElement = document.createElement("article");
+  const trackElement = document.createElement("div");
+  const barElement = document.createElement("div");
+  const labelElement = document.createElement("span");
+  const durationMs = point.durationMs;
+  const barHeightPx =
+    maxDurationMs <= 0
+      ? minBarHeightPx
+      : Math.max(minBarHeightPx, Math.round((durationMs / maxDurationMs) * maxBarHeightPx));
+
+  columnElement.className = "chart-column";
+  trackElement.className = "chart-track";
+  barElement.className = "chart-bar";
+  labelElement.className = "chart-label";
+  columnElement.title = `${point.date}: ${formatDuration(durationMs)}`;
+
+  if (point.isToday) {
+    columnElement.classList.add("chart-column-today");
+  }
+
+  if (durationMs > 0) {
+    barElement.dataset.state = "filled";
+  } else {
+    barElement.dataset.state = "empty";
+  }
+
+  barElement.style.height = `${barHeightPx}px`;
+  labelElement.textContent = point.shortLabel;
+  trackElement.append(barElement);
+  columnElement.append(trackElement, labelElement);
+
+  return columnElement;
+}
+
+function renderChart(stats: StoredStats, nowMs: number): void {
+  if (!historyChartElement || !chartEmptyStateElement) {
+    return;
+  }
+
+  const series = getRecentDailySeries(stats, 14, nowMs);
+  const maxDurationMs = series.reduce((maxDuration, point) => Math.max(maxDuration, point.durationMs), 0);
+
+  historyChartElement.replaceChildren(...series.map((point) => createChartColumn(point, maxDurationMs)));
+  chartEmptyStateElement.hidden = hasTrackedHistory(stats, nowMs);
+}
+
 function renderPopup(runtimeState: RuntimeState, stats: StoredStats): void {
   if (
     !countingIndicatorElement ||
     !countingLabelElement ||
     !todayTotalElement ||
-    !lifetimeTotalElement ||
     !trackingStatusElement ||
-    !updatedAtElement
+    !updatedAtElement ||
+    !historyChartElement ||
+    !chartEmptyStateElement
   ) {
     return;
   }
 
-  const hasTrackedTime = stats.totalMs > 0 || stats.today.durationMs > 0;
+  const nowMs = Date.now();
+  const hasTrackedTime = hasTrackedHistory(stats, nowMs);
   const isCounting = runtimeState.activeSession !== null;
 
   countingIndicatorElement.dataset.state = isCounting ? "active" : "inactive";
   countingLabelElement.textContent = isCounting ? "Counting now" : "Not counting";
-  todayTotalElement.textContent = formatDuration(stats.today.durationMs);
-  lifetimeTotalElement.textContent = formatDuration(stats.totalMs);
+  todayTotalElement.textContent = formatDuration(getTodayDurationMs(stats, nowMs));
   trackingStatusElement.textContent = getTrackingStatusCopy(runtimeState, hasTrackedTime);
   updatedAtElement.textContent = hasTrackedTime ? `Updated ${timeFormatter.format(stats.updatedAtMs)}` : "Waiting for data";
+  renderChart(stats, nowMs);
 }
 
 async function refreshPopup(): Promise<void> {

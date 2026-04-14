@@ -25,10 +25,6 @@
             <span class="metric-label">Today</span>
             <strong id="today-total">0s</strong>
           </article>
-          <article class="metric-card">
-            <span class="metric-label">Total</span>
-            <strong id="lifetime-total">0s</strong>
-          </article>
         </div>
         <div class="hero-meta">
           <span id="tracking-status">Open YouTube to start tracking</span>
@@ -36,10 +32,16 @@
         </div>
       </section>
 
-      <section class="note-card">
-        <h2>How it works</h2>
-        <p>
-          Time is added only when a YouTube page is selected in a browser window and Chrome reports you as active.
+      <section class="chart-card">
+        <div class="chart-header">
+          <div>
+            <h2>Last 14 days</h2>
+            <p>Daily YouTube time, including days with no tracked activity.</p>
+          </div>
+        </div>
+        <div id="history-chart" class="history-chart" aria-label="Last 14 days of YouTube time"></div>
+        <p id="chart-empty-state" class="chart-empty-state">
+          The chart will start filling after your first tracked day on YouTube.
         </p>
       </section>
     </main>

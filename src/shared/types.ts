@@ -1,15 +1,16 @@
 export type IdleState = "active" | "idle" | "locked";
 
-export interface TodayStats {
-  date: string;
-  durationMs: number;
+export interface StoredStats {
+  version: 3;
+  dailyDurationsByDate: Record<string, number>;
+  updatedAtMs: number;
 }
 
-export interface StoredStats {
-  version: 2;
-  totalMs: number;
-  today: TodayStats;
-  updatedAtMs: number;
+export interface DailyChartPoint {
+  date: string;
+  durationMs: number;
+  isToday: boolean;
+  shortLabel: string;
 }
 
 export interface CountableContext {
