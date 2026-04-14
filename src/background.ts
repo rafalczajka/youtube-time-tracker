@@ -1,3 +1,4 @@
+import { getActionBadgeState } from "./shared/action-badge";
 import { reconcileSession } from "./shared/session";
 import { appendTrackedDuration, loadRuntimeState, saveRuntimeState } from "./shared/storage";
 import type { CountableContext, IdleState } from "./shared/types";
@@ -6,8 +7,10 @@ import { extractActiveYouTubeContexts, pickCountableContext } from "./shared/you
 const HEARTBEAT_ALARM = "stats-heartbeat";
 const HEARTBEAT_MINUTES = 0.5;
 const IDLE_INTERVAL_SECONDS = 60;
+const ACTION_ICON_SIZES = [16, 24, 32] as const;
 
 let operationQueue = Promise.resolve();
+const actionIconCache = new Map<string, Promise<Record<number, ImageData>>>();
 
 function enqueue(reason: string, work: () => Promise<void>) {
   operationQueue = operationQueue
@@ -15,6 +18,78 @@ function enqueue(reason: string, work: () => Promise<void>) {
     .catch((error) => {
       console.error(`Failed during ${reason}:`, error);
     });
+}
+
+async function syncActionBadge(isCounting: boolean): Promise<void> {
+  const badgeState = getActionBadgeState(isCounting);
+  const imageData = await getActionIconSet(badgeState.dotColor);
+
+  await Promise.all([
+    chrome.action.setBadgeText({
+      text: ""
+    }),
+    chrome.action.setIcon({ imageData }),
+    chrome.action.setTitle({
+      title: badgeState.title
+    })
+  ]);
+}
+
+async function getActionIconSet(dotColor: string): Promise<Record<number, ImageData>> {
+  const existingIconSet = actionIconCache.get(dotColor);
+
+  if (existingIconSet) {
+    return existingIconSet;
+  }
+
+  const nextIconSet = buildActionIconSet(dotColor);
+  actionIconCache.set(dotColor, nextIconSet);
+  return nextIconSet;
+}
+
+async function buildActionIconSet(dotColor: string): Promise<Record<number, ImageData>> {
+  const entries = await Promise.all(
+    ACTION_ICON_SIZES.map(async (size) => {
+      const imageBitmap = await loadActionIconBitmap(size);
+      const canvas = new OffscreenCanvas(size, size);
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        throw new Error("Failed to create canvas context for action icon.");
+      }
+
+      const radius = Math.max(3, Math.round(size * 0.22));
+      const centerX = size - radius - 1;
+      const centerY = size - radius - 1;
+
+      context.clearRect(0, 0, size, size);
+      context.drawImage(imageBitmap, 0, 0, size, size);
+
+      context.fillStyle = "rgba(255, 255, 255, 0.96)";
+      context.beginPath();
+      context.arc(centerX, centerY, radius + 1.5, 0, Math.PI * 2);
+      context.fill();
+
+      context.fillStyle = dotColor;
+      context.beginPath();
+      context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      context.fill();
+
+      return [size, context.getImageData(0, 0, size, size)] as const;
+    })
+  );
+
+  return Object.fromEntries(entries);
+}
+
+async function loadActionIconBitmap(size: (typeof ACTION_ICON_SIZES)[number]): Promise<ImageBitmap> {
+  const response = await fetch(chrome.runtime.getURL(`icons/icon-${size}.png`));
+
+  if (!response.ok) {
+    throw new Error(`Failed to load action icon ${size}px.`);
+  }
+
+  return createImageBitmap(await response.blob());
 }
 
 async function ensureHeartbeatAlarm(): Promise<void> {
@@ -88,6 +163,7 @@ async function reconcileCurrentBrowserState(reason: string): Promise<void> {
     idleState: browserState.idleState,
     updatedAtMs: nowMs
   });
+  await syncActionBadge(result.nextSession !== null);
 
   console.debug(`Reconciled YouTube session after ${reason}.`);
 }
