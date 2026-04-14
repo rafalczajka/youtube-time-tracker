@@ -8,41 +8,24 @@
   </head>
   <body>
     <main class="popup-shell">
-      <section class="hero-card">
-        <p class="eyebrow">YouTube Time Tracker</p>
-        <div class="hero-row">
-          <div>
-            <h1>YouTube focus time</h1>
-            <p class="hero-copy">Counts time while YouTube is the selected tab in any browser window and you are active.</p>
-          </div>
+      <header class="popup-header">
+        <div class="header-copy">
+          <p class="app-label">YouTube Time</p>
+          <h1>Today</h1>
         </div>
-        <div id="counting-indicator" class="status-pill" data-state="inactive" aria-live="polite">
+        <strong id="today-total" class="today-total">0s</strong>
+        <div id="counting-indicator" class="status-pill header-status" data-state="inactive" aria-live="polite">
           <span class="status-dot" aria-hidden="true"></span>
-          <span id="counting-label">Not counting right now</span>
+          <span id="counting-label">Paused</span>
         </div>
-        <div class="metrics-grid">
-          <article class="metric-card">
-            <span class="metric-label">Today</span>
-            <strong id="today-total">0s</strong>
-          </article>
-        </div>
-        <div class="hero-meta">
-          <span id="tracking-status">Open YouTube to start tracking</span>
-          <span id="updated-at">Waiting for data</span>
-        </div>
-      </section>
+      </header>
 
-      <section class="chart-card">
+      <section class="chart-section">
         <div class="chart-header">
-          <div>
-            <h2>Last 14 days</h2>
-            <p>Daily YouTube time, including days with no tracked activity.</p>
-          </div>
+          <h2>Last 14 days</h2>
         </div>
         <div id="history-chart" class="history-chart" aria-label="Last 14 days of YouTube time"></div>
-        <p id="chart-empty-state" class="chart-empty-state">
-          The chart will start filling after your first tracked day on YouTube.
-        </p>
+        <p id="chart-empty-state" class="chart-empty-state">No tracked days yet.</p>
       </section>
     </main>
 
