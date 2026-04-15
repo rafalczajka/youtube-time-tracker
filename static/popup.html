@@ -12,12 +12,15 @@
         <div class="header-copy">
           <p class="app-label">YouTube Time</p>
           <h1>Today</h1>
-          <button id="pause-toggle" class="pause-toggle" type="button">Pause</button>
+          <strong id="today-total" class="today-total">0s</strong>
         </div>
-        <strong id="today-total" class="today-total">0s</strong>
-        <div id="counting-indicator" class="status-pill header-status" data-state="inactive" aria-live="polite">
-          <span class="status-dot" aria-hidden="true"></span>
-          <span id="counting-label">Paused</span>
+
+        <div class="header-controls">
+          <div id="counting-indicator" class="status-pill" data-state="inactive" aria-live="polite">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="counting-label">Paused</span>
+          </div>
+          <button id="pause-toggle" class="pause-toggle" type="button">Pause</button>
         </div>
       </header>
 

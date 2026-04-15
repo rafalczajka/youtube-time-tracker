@@ -35,24 +35,26 @@ body {
 .popup-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas:
-    "copy total"
-    "status total";
-  column-gap: var(--space-3);
-  row-gap: var(--space-3);
+  column-gap: var(--space-4);
   align-items: start;
 }
 
 .header-copy {
-  grid-area: copy;
   min-width: 0;
   display: grid;
-  justify-items: start;
+  gap: var(--space-1);
+  align-content: start;
+}
+
+.header-controls {
+  display: grid;
+  justify-items: end;
+  align-content: start;
   gap: var(--space-2);
 }
 
 .app-label {
-  margin: 0 0 var(--space-1);
+  margin: 0;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -67,10 +69,12 @@ body {
 }
 
 .pause-toggle {
+  min-width: 92px;
   padding: 7px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid rgba(19, 37, 46, 0.22);
   border-radius: 999px;
-  background: var(--surface-soft);
+  background: #f4f6f6;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
   color: var(--text-main);
   font: inherit;
   font-size: 11px;
@@ -81,16 +85,13 @@ body {
 }
 
 .pause-toggle:hover {
-  background: #eef1f1;
+  border-color: rgba(19, 37, 46, 0.3);
+  background: #edf1f1;
 }
 
 .pause-toggle:active {
-  background: #e8ecec;
-}
-
-.header-status {
-  grid-area: status;
-  justify-self: start;
+  border-color: rgba(19, 37, 46, 0.34);
+  background: #e6ebeb;
 }
 
 .status-pill {
@@ -130,14 +131,12 @@ body {
 }
 
 .today-total {
-  grid-area: total;
-  align-self: center;
-  justify-self: end;
-  font-size: 34px;
-  line-height: 1;
+  margin-top: var(--space-2);
+  font-size: 38px;
+  line-height: 0.95;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: left;
 }
 
 .chart-section {
