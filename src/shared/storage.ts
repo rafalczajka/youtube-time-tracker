@@ -39,6 +39,7 @@ function createDefaultRuntimeState(nowMs = Date.now()): RuntimeState {
   return {
     activeSession: null,
     focusedWindowId: null,
+    isManuallyPaused: false,
     idleState: "active",
     updatedAtMs: nowMs
   };
@@ -54,6 +55,7 @@ function normalizeRuntimeState(value: unknown, nowMs = Date.now()): RuntimeState
   const candidate = value as {
     activeSession?: unknown;
     focusedWindowId?: unknown;
+    isManuallyPaused?: unknown;
     idleState?: unknown;
     updatedAtMs?: unknown;
   };
@@ -64,6 +66,7 @@ function normalizeRuntimeState(value: unknown, nowMs = Date.now()): RuntimeState
       typeof candidate.focusedWindowId === "number" && Number.isFinite(candidate.focusedWindowId)
         ? candidate.focusedWindowId
         : null,
+    isManuallyPaused: candidate.isManuallyPaused === true,
     idleState: sanitizeIdleState(candidate.idleState),
     updatedAtMs:
       typeof candidate.updatedAtMs === "number" && Number.isFinite(candidate.updatedAtMs)

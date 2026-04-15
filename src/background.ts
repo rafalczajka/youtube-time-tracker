@@ -1,7 +1,7 @@
 import { getActionBadgeState } from "./shared/action-badge";
 import { reconcileSession } from "./shared/session";
 import { appendTrackedDuration, loadRuntimeState, saveRuntimeState } from "./shared/storage";
-import type { CountableContext, IdleState } from "./shared/types";
+import type { CountableContext, IdleState, RuntimeMessage, RuntimeState } from "./shared/types";
 import { extractActiveYouTubeContexts, pickCountableContext } from "./shared/youtube";
 
 const HEARTBEAT_ALARM = "stats-heartbeat";
@@ -21,7 +21,29 @@ function enqueue(reason: string, work: () => Promise<void>) {
 }
 
 async function syncActionBadge(isCounting: boolean): Promise<void> {
-  const badgeState = getActionBadgeState(isCounting);
+  const runtimeState = await loadRuntimeState();
+  const badgeState = getActionBadgeState({
+    isCounting,
+    isManuallyPaused: runtimeState.isManuallyPaused
+  });
+  const imageData = await getActionIconSet(badgeState.dotColor);
+
+  await Promise.all([
+    chrome.action.setBadgeText({
+      text: ""
+    }),
+    chrome.action.setIcon({ imageData }),
+    chrome.action.setTitle({
+      title: badgeState.title
+    })
+  ]);
+}
+
+async function syncActionBadgeFromState(runtimeState: RuntimeState): Promise<void> {
+  const badgeState = getActionBadgeState({
+    isCounting: runtimeState.activeSession !== null,
+    isManuallyPaused: runtimeState.isManuallyPaused
+  });
   const imageData = await getActionIconSet(badgeState.dotColor);
 
   await Promise.all([
@@ -144,7 +166,7 @@ async function reconcileCurrentBrowserState(reason: string): Promise<void> {
   const nowMs = Date.now();
   const [runtimeState, browserState] = await Promise.all([loadRuntimeState(nowMs), getCurrentContext()]);
   const context =
-    browserState.idleState === "active"
+    browserState.idleState === "active" && !runtimeState.isManuallyPaused
       ? pickCountableContext(browserState.contexts, runtimeState.activeSession, browserState.focusedWindowId)
       : null;
   const result = reconcileSession({
@@ -157,21 +179,76 @@ async function reconcileCurrentBrowserState(reason: string): Promise<void> {
     await appendTrackedDuration(result.flushedDuration.startMs, result.flushedDuration.endMs);
   }
 
-  await saveRuntimeState({
+  const nextRuntimeState = {
     activeSession: result.nextSession,
     focusedWindowId: browserState.focusedWindowId,
+    isManuallyPaused: runtimeState.isManuallyPaused,
     idleState: browserState.idleState,
     updatedAtMs: nowMs
-  });
-  await syncActionBadge(result.nextSession !== null);
+  };
+
+  await saveRuntimeState(nextRuntimeState);
+  await syncActionBadgeFromState(nextRuntimeState);
 
   console.debug(`Reconciled YouTube session after ${reason}.`);
 }
 
-function scheduleReconcile(reason: string) {
+async function clearManualPauseOnTabSwitch(): Promise<void> {
+  const runtimeState = await loadRuntimeState();
+
+  if (!runtimeState.isManuallyPaused) {
+    return;
+  }
+
+  const nextRuntimeState = {
+    ...runtimeState,
+    isManuallyPaused: false,
+    updatedAtMs: Date.now()
+  };
+
+  await saveRuntimeState(nextRuntimeState);
+  await syncActionBadgeFromState(nextRuntimeState);
+}
+
+async function manuallyPauseTracking(): Promise<void> {
+  const nowMs = Date.now();
+  const runtimeState = await loadRuntimeState(nowMs);
+
+  if (runtimeState.activeSession) {
+    await appendTrackedDuration(runtimeState.activeSession.lastFlushedAtMs, nowMs);
+  }
+
+  const nextRuntimeState = {
+    ...runtimeState,
+    activeSession: null,
+    isManuallyPaused: true,
+    updatedAtMs: nowMs
+  };
+
+  await saveRuntimeState(nextRuntimeState);
+  await syncActionBadgeFromState(nextRuntimeState);
+}
+
+async function manuallyResumeTracking(): Promise<void> {
+  const runtimeState = await loadRuntimeState();
+  const nextRuntimeState = {
+    ...runtimeState,
+    isManuallyPaused: false,
+    updatedAtMs: Date.now()
+  };
+
+  await saveRuntimeState(nextRuntimeState);
+  await syncActionBadgeFromState(nextRuntimeState);
+  await reconcileCurrentBrowserState("resume-tracking");
+}
+
+function scheduleReconcile(reason: string, options?: { clearManualPause?: boolean }) {
   enqueue(reason, async () => {
     chrome.idle.setDetectionInterval(IDLE_INTERVAL_SECONDS);
     await ensureHeartbeatAlarm();
+    if (options?.clearManualPause) {
+      await clearManualPauseOnTabSwitch();
+    }
     await reconcileCurrentBrowserState(reason);
   });
 }
@@ -184,8 +261,24 @@ chrome.runtime.onStartup.addListener(() => {
   scheduleReconcile("runtime.onStartup");
 });
 
+chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {
+  enqueue(`runtime.onMessage:${message.type}`, async () => {
+    if (message.type === "pause-tracking") {
+      await manuallyPauseTracking();
+    }
+
+    if (message.type === "resume-tracking") {
+      await manuallyResumeTracking();
+    }
+
+    sendResponse({ ok: true });
+  });
+
+  return true;
+});
+
 chrome.tabs.onActivated.addListener(() => {
-  scheduleReconcile("tabs.onActivated");
+  scheduleReconcile("tabs.onActivated", { clearManualPause: true });
 });
 
 chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {

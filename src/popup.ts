@@ -1,13 +1,14 @@
 import { STATS_STORAGE_KEY, getRecentDailySeries, getTodayDurationMs, hasTrackedHistory } from "./shared/stats";
 import { loadRuntimeState, loadStoredStats } from "./shared/storage";
 import { formatDuration } from "./shared/time";
-import type { DailyChartPoint, RuntimeState, StoredStats } from "./shared/types";
+import type { DailyChartPoint, RuntimeMessage, RuntimeState, StoredStats } from "./shared/types";
 
 const countingIndicatorElement = document.querySelector<HTMLElement>("#counting-indicator");
 const countingLabelElement = document.querySelector<HTMLElement>("#counting-label");
 const todayTotalElement = document.querySelector<HTMLElement>("#today-total");
 const historyChartElement = document.querySelector<HTMLElement>("#history-chart");
 const chartEmptyStateElement = document.querySelector<HTMLElement>("#chart-empty-state");
+const pauseToggleElement = document.querySelector<HTMLButtonElement>("#pause-toggle");
 
 function ensurePopupElements(): void {
   if (
@@ -15,10 +16,31 @@ function ensurePopupElements(): void {
     !countingLabelElement ||
     !todayTotalElement ||
     !historyChartElement ||
-    !chartEmptyStateElement
+    !chartEmptyStateElement ||
+    !pauseToggleElement
   ) {
     throw new Error("Popup elements are missing from popup.html.");
   }
+}
+
+function getStatusLabel(runtimeState: RuntimeState): string {
+  if (runtimeState.isManuallyPaused) {
+    return "Paused manually";
+  }
+
+  if (runtimeState.activeSession) {
+    return "Counting";
+  }
+
+  if (runtimeState.idleState === "locked" || runtimeState.idleState === "idle") {
+    return "Paused";
+  }
+
+  return "Waiting";
+}
+
+async function sendRuntimeMessage(message: RuntimeMessage): Promise<void> {
+  await chrome.runtime.sendMessage(message);
 }
 
 async function loadPopupState(): Promise<{
@@ -91,17 +113,19 @@ function renderPopup(runtimeState: RuntimeState, stats: StoredStats): void {
     !countingLabelElement ||
     !todayTotalElement ||
     !historyChartElement ||
-    !chartEmptyStateElement
+    !chartEmptyStateElement ||
+    !pauseToggleElement
   ) {
     return;
   }
 
   const nowMs = Date.now();
-  const isCounting = runtimeState.activeSession !== null;
+  const isCounting = runtimeState.activeSession !== null && !runtimeState.isManuallyPaused;
 
   countingIndicatorElement.dataset.state = isCounting ? "active" : "inactive";
-  countingLabelElement.textContent = isCounting ? "Counting" : "Paused";
+  countingLabelElement.textContent = getStatusLabel(runtimeState);
   todayTotalElement.textContent = formatDuration(getTodayDurationMs(stats, nowMs));
+  pauseToggleElement.textContent = runtimeState.isManuallyPaused ? "Resume" : "Pause";
   renderChart(stats, nowMs);
 }
 
@@ -112,6 +136,12 @@ async function refreshPopup(): Promise<void> {
 
 ensurePopupElements();
 void refreshPopup();
+
+pauseToggleElement?.addEventListener("click", () => {
+  void sendRuntimeMessage({
+    type: pauseToggleElement.textContent === "Resume" ? "resume-tracking" : "pause-tracking"
+  });
+});
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if ((areaName === "local" && changes[STATS_STORAGE_KEY]) || areaName === "session") {

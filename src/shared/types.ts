@@ -26,6 +26,7 @@ export interface ActiveSession extends CountableContext {
 export interface RuntimeState {
   activeSession: ActiveSession | null;
   focusedWindowId: number | null;
+  isManuallyPaused: boolean;
   idleState: IdleState;
   updatedAtMs: number;
 }
@@ -46,3 +47,7 @@ export interface SessionReconcileResult {
   nextSession: ActiveSession | null;
   flushedDuration: SessionFlush | null;
 }
+
+export type RuntimeMessage = {
+  type: "pause-tracking" | "resume-tracking";
+};
