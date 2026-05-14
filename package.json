@@ -12,11 +12,11 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/chrome": "0.1.40",
-    "@types/node": "25.6.0",
+    "@types/chrome": "0.1.42",
+    "@types/node": "25.8.0",
     "chokidar": "5.0.0",
     "esbuild": "0.28.0",
-    "tsx": "4.21.0",
+    "tsx": "4.22.0",
     "typescript": "6.0.3"
   }
 }
