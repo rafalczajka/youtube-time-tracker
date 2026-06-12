@@ -1,4 +1,5 @@
 import { STATS_STORAGE_KEY, getRecentDailySeries, getTodayDurationMs, hasTrackedHistory } from "./shared/stats";
+import { TOGGLE_TRACKING_COMMAND, matchesCommandShortcut } from "./shared/commands";
 import { loadRuntimeState, loadStoredStats } from "./shared/storage";
 import { formatDuration } from "./shared/time";
 import type { DailyChartPoint, RuntimeMessage, RuntimeState, StoredStats } from "./shared/types";
@@ -9,6 +10,15 @@ const todayTotalElement = document.querySelector<HTMLElement>("#today-total");
 const historyChartElement = document.querySelector<HTMLElement>("#history-chart");
 const chartEmptyStateElement = document.querySelector<HTMLElement>("#chart-empty-state");
 const pauseToggleElement = document.querySelector<HTMLButtonElement>("#pause-toggle");
+let toggleTrackingShortcut: string | null = null;
+
+type CommandManifestEntry = {
+  suggested_key?: string | Record<string, string>;
+};
+
+type ManifestWithCommands = chrome.runtime.ManifestV3 & {
+  commands?: Record<string, CommandManifestEntry>;
+};
 
 function ensurePopupElements(): void {
   if (
@@ -134,13 +144,56 @@ async function refreshPopup(): Promise<void> {
   renderPopup(runtimeState, stats);
 }
 
+async function toggleTracking(): Promise<void> {
+  await sendRuntimeMessage({ type: "toggle-tracking" });
+  await refreshPopup();
+}
+
+async function loadToggleTrackingShortcut(): Promise<void> {
+  try {
+    const commands = await chrome.commands.getAll();
+    const toggleCommand = commands.find((command) => command.name === TOGGLE_TRACKING_COMMAND);
+
+    toggleTrackingShortcut = toggleCommand?.shortcut || getSuggestedToggleTrackingShortcut();
+  } catch {
+    toggleTrackingShortcut = getSuggestedToggleTrackingShortcut();
+  }
+}
+
+function getSuggestedToggleTrackingShortcut(): string | null {
+  const manifest = chrome.runtime.getManifest() as ManifestWithCommands;
+  const suggestedKey = manifest.commands?.[TOGGLE_TRACKING_COMMAND]?.suggested_key;
+
+  if (typeof suggestedKey === "string") {
+    return suggestedKey;
+  }
+
+  if (!suggestedKey) {
+    return null;
+  }
+
+  return isMacPlatform() ? (suggestedKey.mac ?? suggestedKey.default ?? null) : (suggestedKey.default ?? null);
+}
+
+function isMacPlatform(): boolean {
+  return navigator.platform.toLowerCase().includes("mac");
+}
+
 ensurePopupElements();
 void refreshPopup();
+void loadToggleTrackingShortcut();
 
 pauseToggleElement?.addEventListener("click", () => {
-  void sendRuntimeMessage({
-    type: pauseToggleElement.textContent === "Resume" ? "resume-tracking" : "pause-tracking"
-  });
+  void toggleTracking();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (!toggleTrackingShortcut || !matchesCommandShortcut(event, toggleTrackingShortcut)) {
+    return;
+  }
+
+  event.preventDefault();
+  void toggleTracking();
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {

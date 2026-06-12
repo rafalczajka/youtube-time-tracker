@@ -1,4 +1,5 @@
 import { getActionBadgeState } from "./shared/action-badge";
+import { TOGGLE_TRACKING_COMMAND } from "./shared/commands";
 import { reconcileSession } from "./shared/session";
 import { appendTrackedDuration, loadRuntimeState, saveRuntimeState } from "./shared/storage";
 import type { CountableContext, IdleState, RuntimeMessage, RuntimeState } from "./shared/types";
@@ -242,6 +243,17 @@ async function manuallyResumeTracking(): Promise<void> {
   await reconcileCurrentBrowserState("resume-tracking");
 }
 
+async function toggleManualPauseTracking(): Promise<void> {
+  const runtimeState = await loadRuntimeState();
+
+  if (runtimeState.isManuallyPaused) {
+    await manuallyResumeTracking();
+    return;
+  }
+
+  await manuallyPauseTracking();
+}
+
 function scheduleReconcile(reason: string, options?: { clearManualPause?: boolean }) {
   enqueue(reason, async () => {
     chrome.idle.setDetectionInterval(IDLE_INTERVAL_SECONDS);
@@ -271,10 +283,24 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResp
       await manuallyResumeTracking();
     }
 
+    if (message.type === "toggle-tracking") {
+      await toggleManualPauseTracking();
+    }
+
     sendResponse({ ok: true });
   });
 
   return true;
+});
+
+chrome.commands.onCommand.addListener((command) => {
+  if (command !== TOGGLE_TRACKING_COMMAND) {
+    return;
+  }
+
+  enqueue(`commands.onCommand:${command}`, async () => {
+    await toggleManualPauseTracking();
+  });
 });
 
 chrome.tabs.onActivated.addListener(() => {

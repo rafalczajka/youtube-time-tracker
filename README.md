@@ -12,6 +12,7 @@ Chrome extension for tracking time spent on YouTube and visualizing daily usage 
   - current status in the popup (`Counting` / `Paused`)
   - today's tracked time
   - a 14-day bar chart with zero-filled gaps for days without usage
+- Allows pausing or resuming tracking from the popup or with `Alt+Shift+Y` (`Command+Shift+Y` on macOS)
 - Updates the extension icon with a colored status dot:
   - green = counting
   - yellow = paused
@@ -28,6 +29,8 @@ Tracking is active when:
 If multiple browser windows are open, the extension prefers the currently tracked YouTube tab and otherwise falls back to another selected YouTube tab.
 
 Tracked time is split across day boundaries, so sessions crossing midnight are saved into the correct dates.
+
+The pause shortcut can be changed in Chrome at `chrome://extensions/shortcuts`.
 
 ## Tech Stack
 

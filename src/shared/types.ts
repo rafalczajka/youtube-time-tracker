@@ -49,5 +49,5 @@ export interface SessionReconcileResult {
 }
 
 export type RuntimeMessage = {
-  type: "pause-tracking" | "resume-tracking";
+  type: "pause-tracking" | "resume-tracking" | "toggle-tracking";
 };
