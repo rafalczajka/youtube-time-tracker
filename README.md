@@ -30,7 +30,12 @@ If multiple browser windows are open, the extension prefers the currently tracke
 
 Tracked time is split across day boundaries, so sessions crossing midnight are saved into the correct dates.
 
+Gaps longer than 90 seconds without a tracking update are skipped to avoid counting device sleep. This can also omit time if Chrome delays the background worker for longer than that. Tracking resumes from the next update when the usual conditions are met.
+
+Usage and a session checkpoint are saved together, so retrying an interrupted save does not count the same interval twice. Existing daily history is preserved.
+
 The pause shortcut can be changed in Chrome at `chrome://extensions/shortcuts`.
+The popup respects the assigned shortcut, including when it is removed, and holding the keys does not repeatedly toggle tracking.
 
 ## Tech Stack
 

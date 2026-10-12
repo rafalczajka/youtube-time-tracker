@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { reconcileSession } from "../src/shared/session";
+import { MAX_SESSION_GAP_MS, reconcileSession } from "../src/shared/session";
 
 test("flushes elapsed time and keeps the session open on heartbeat for the same tab", () => {
   const result = reconcileSession({
@@ -70,4 +70,46 @@ test("flushes the old session and starts a new one when switching to another You
     startedAtMs: 8_000,
     lastFlushedAtMs: 8_000
   });
+});
+
+test("skips an unobserved sleep gap and starts a fresh session at wake time", () => {
+  const wakeMs = 1_000 + 8 * 60 * 60 * 1_000;
+  const result = reconcileSession({
+    session: { tabId: 7, windowId: 1, startedAtMs: 1_000, lastFlushedAtMs: 1_000 },
+    context: { tabId: 7, windowId: 1 },
+    nowMs: wakeMs
+  });
+
+  assert.equal(result.flushedDuration, null);
+  assert.deepEqual(result.nextSession, {
+    tabId: 7, windowId: 1, startedAtMs: wakeMs, lastFlushedAtMs: wakeMs
+  });
+
+  const heartbeat = reconcileSession({
+    session: result.nextSession,
+    context: { tabId: 7, windowId: 1 },
+    nowMs: wakeMs + 30_000
+  });
+  assert.deepEqual(heartbeat.flushedDuration, { startMs: wakeMs, endMs: wakeMs + 30_000 });
+});
+
+test("closes a stale session without counting the gap on pause or idle", () => {
+  const result = reconcileSession({
+    session: { tabId: 7, windowId: 1, startedAtMs: 1_000, lastFlushedAtMs: 1_000 },
+    context: null,
+    nowMs: 1_000 + MAX_SESSION_GAP_MS + 1
+  });
+
+  assert.equal(result.nextSession, null);
+  assert.equal(result.flushedDuration, null);
+});
+
+test("still counts a heartbeat delayed up to the tolerated gap", () => {
+  const result = reconcileSession({
+    session: { tabId: 7, windowId: 1, startedAtMs: 1_000, lastFlushedAtMs: 1_000 },
+    context: { tabId: 7, windowId: 1 },
+    nowMs: 1_000 + MAX_SESSION_GAP_MS
+  });
+
+  assert.deepEqual(result.flushedDuration, { startMs: 1_000, endMs: 1_000 + MAX_SESSION_GAP_MS });
 });

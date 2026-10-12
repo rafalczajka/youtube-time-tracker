@@ -160,6 +160,10 @@ body {
   align-items: end;
 }
 
+.history-chart[hidden] {
+  display: none;
+}
+
 .chart-column {
   display: grid;
   gap: var(--space-1);

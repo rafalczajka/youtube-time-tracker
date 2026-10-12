@@ -4,6 +4,7 @@ export interface StoredStats {
   version: 3;
   dailyDurationsByDate: Record<string, number>;
   updatedAtMs: number;
+  trackingCheckpoint?: TrackingCheckpoint;
 }
 
 export interface DailyChartPoint {
@@ -21,6 +22,11 @@ export interface CountableContext {
 export interface ActiveSession extends CountableContext {
   startedAtMs: number;
   lastFlushedAtMs: number;
+}
+
+export interface TrackingCheckpoint extends CountableContext {
+  startedAtMs: number;
+  endMs: number;
 }
 
 export interface RuntimeState {

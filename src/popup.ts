@@ -12,14 +12,6 @@ const chartEmptyStateElement = document.querySelector<HTMLElement>("#chart-empty
 const pauseToggleElement = document.querySelector<HTMLButtonElement>("#pause-toggle");
 let toggleTrackingShortcut: string | null = null;
 
-type CommandManifestEntry = {
-  suggested_key?: string | Record<string, string>;
-};
-
-type ManifestWithCommands = chrome.runtime.ManifestV3 & {
-  commands?: Record<string, CommandManifestEntry>;
-};
-
 function ensurePopupElements(): void {
   if (
     !countingIndicatorElement ||
@@ -154,29 +146,11 @@ async function loadToggleTrackingShortcut(): Promise<void> {
     const commands = await chrome.commands.getAll();
     const toggleCommand = commands.find((command) => command.name === TOGGLE_TRACKING_COMMAND);
 
-    toggleTrackingShortcut = toggleCommand?.shortcut || getSuggestedToggleTrackingShortcut();
-  } catch {
-    toggleTrackingShortcut = getSuggestedToggleTrackingShortcut();
+    toggleTrackingShortcut = toggleCommand?.shortcut || null;
+  } catch (error) {
+    toggleTrackingShortcut = null;
+    console.error("Failed to load the tracking shortcut:", error);
   }
-}
-
-function getSuggestedToggleTrackingShortcut(): string | null {
-  const manifest = chrome.runtime.getManifest() as ManifestWithCommands;
-  const suggestedKey = manifest.commands?.[TOGGLE_TRACKING_COMMAND]?.suggested_key;
-
-  if (typeof suggestedKey === "string") {
-    return suggestedKey;
-  }
-
-  if (!suggestedKey) {
-    return null;
-  }
-
-  return isMacPlatform() ? (suggestedKey.mac ?? suggestedKey.default ?? null) : (suggestedKey.default ?? null);
-}
-
-function isMacPlatform(): boolean {
-  return navigator.platform.toLowerCase().includes("mac");
 }
 
 ensurePopupElements();
@@ -205,5 +179,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     void refreshPopup();
+    void loadToggleTrackingShortcut();
   }
 });

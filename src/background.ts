@@ -142,14 +142,14 @@ async function getIdleState(): Promise<IdleState> {
   return currentState;
 }
 
-async function getCurrentContext(): Promise<{
+async function getCurrentContext(idleStateOverride?: IdleState): Promise<{
   contexts: CountableContext[];
   focusedWindowId: number | null;
   idleState: IdleState;
 }> {
   const [focusedWindowId, idleState, activeTabs] = await Promise.all([
     getFocusedWindowId(),
-    getIdleState(),
+    idleStateOverride ?? getIdleState(),
     chrome.tabs.query({
       active: true,
       windowType: "normal"
@@ -163,9 +163,12 @@ async function getCurrentContext(): Promise<{
   };
 }
 
-async function reconcileCurrentBrowserState(reason: string): Promise<void> {
+async function reconcileCurrentBrowserState(reason: string, idleStateOverride?: IdleState): Promise<void> {
   const nowMs = Date.now();
-  const [runtimeState, browserState] = await Promise.all([loadRuntimeState(nowMs), getCurrentContext()]);
+  const [runtimeState, browserState] = await Promise.all([
+    loadRuntimeState(nowMs),
+    getCurrentContext(idleStateOverride)
+  ]);
   const context =
     browserState.idleState === "active" && !runtimeState.isManuallyPaused
       ? pickCountableContext(browserState.contexts, runtimeState.activeSession, browserState.focusedWindowId)
@@ -176,8 +179,8 @@ async function reconcileCurrentBrowserState(reason: string): Promise<void> {
     nowMs
   });
 
-  if (result.flushedDuration) {
-    await appendTrackedDuration(result.flushedDuration.startMs, result.flushedDuration.endMs);
+  if (result.flushedDuration && runtimeState.activeSession) {
+    await appendTrackedDuration(runtimeState.activeSession, result.flushedDuration.endMs);
   }
 
   const nextRuntimeState = {
@@ -215,8 +218,10 @@ async function manuallyPauseTracking(): Promise<void> {
   const nowMs = Date.now();
   const runtimeState = await loadRuntimeState(nowMs);
 
-  if (runtimeState.activeSession) {
-    await appendTrackedDuration(runtimeState.activeSession.lastFlushedAtMs, nowMs);
+  const result = reconcileSession({ session: runtimeState.activeSession, context: null, nowMs });
+
+  if (result.flushedDuration && runtimeState.activeSession) {
+    await appendTrackedDuration(runtimeState.activeSession, result.flushedDuration.endMs);
   }
 
   const nextRuntimeState = {
@@ -254,14 +259,14 @@ async function toggleManualPauseTracking(): Promise<void> {
   await manuallyPauseTracking();
 }
 
-function scheduleReconcile(reason: string, options?: { clearManualPause?: boolean }) {
+function scheduleReconcile(reason: string, options?: { clearManualPause?: boolean; idleState?: IdleState }) {
   enqueue(reason, async () => {
     chrome.idle.setDetectionInterval(IDLE_INTERVAL_SECONDS);
     await ensureHeartbeatAlarm();
     if (options?.clearManualPause) {
       await clearManualPauseOnTabSwitch();
     }
-    await reconcileCurrentBrowserState(reason);
+    await reconcileCurrentBrowserState(reason, options?.idleState);
   });
 }
 
@@ -321,8 +326,8 @@ chrome.windows.onFocusChanged.addListener(() => {
   scheduleReconcile("windows.onFocusChanged");
 });
 
-chrome.idle.onStateChanged.addListener(() => {
-  scheduleReconcile("idle.onStateChanged");
+chrome.idle.onStateChanged.addListener((idleState) => {
+  scheduleReconcile("idle.onStateChanged", { idleState });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {

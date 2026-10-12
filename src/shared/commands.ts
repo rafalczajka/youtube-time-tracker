@@ -19,6 +19,10 @@ const KEY_ALIASES: Record<string, string> = {
 };
 
 function normalizeShortcutKey(value: string): string {
+  if (value === " ") {
+    return value;
+  }
+
   const key = value.trim().toLowerCase();
   return KEY_ALIASES[key] ?? key;
 }
@@ -74,6 +78,10 @@ export function parseCommandShortcut(shortcut: string): CommandShortcut | null {
 }
 
 export function matchesCommandShortcut(event: KeyboardEvent, shortcut: string): boolean {
+  if (event.repeat) {
+    return false;
+  }
+
   const parsedShortcut = parseCommandShortcut(shortcut);
 
   if (!parsedShortcut) {

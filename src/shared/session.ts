@@ -5,6 +5,8 @@ import type {
   SessionReconcileResult
 } from "./types";
 
+export const MAX_SESSION_GAP_MS = 90_000;
+
 interface ReconcileSessionInput {
   session: ActiveSession | null;
   context: CountableContext | null;
@@ -41,6 +43,14 @@ export function reconcileSession({
   context,
   nowMs
 }: ReconcileSessionInput): SessionReconcileResult {
+  // A missed heartbeat may span device sleep; do not bill an unobserved gap.
+  if (session && nowMs - session.lastFlushedAtMs > MAX_SESSION_GAP_MS) {
+    return {
+      nextSession: context ? createSession(context, nowMs) : null,
+      flushedDuration: null
+    };
+  }
+
   if (!session && !context) {
     return {
       nextSession: null,

@@ -1,10 +1,30 @@
 import { splitDurationAcrossDays, toLocalDateKey } from "./time";
-import type { DailyChartPoint, StoredStats } from "./types";
+import type { DailyChartPoint, StoredStats, TrackingCheckpoint } from "./types";
 
 export const STATS_STORAGE_KEY = "stats";
 export const STATS_VERSION = 3 as const;
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function sanitizeTrackingCheckpoint(value: unknown): TrackingCheckpoint | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const { tabId, windowId, startedAtMs, endMs } = candidate;
+
+  if (
+    typeof tabId !== "number" || !Number.isInteger(tabId) || tabId < 0 ||
+    typeof windowId !== "number" || !Number.isInteger(windowId) || windowId < 0 ||
+    typeof startedAtMs !== "number" || !Number.isFinite(startedAtMs) ||
+    typeof endMs !== "number" || !Number.isFinite(endMs) || endMs < startedAtMs
+  ) {
+    return undefined;
+  }
+
+  return { tabId, windowId, startedAtMs, endMs };
+}
 
 function sanitizeDuration(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
@@ -72,6 +92,7 @@ export function normalizeStoredStats(value: unknown, nowMs = Date.now()): Stored
     version?: unknown;
     dailyDurationsByDate?: unknown;
     updatedAtMs?: unknown;
+    trackingCheckpoint?: unknown;
   };
 
   if (candidate.version !== STATS_VERSION) {
@@ -79,6 +100,7 @@ export function normalizeStoredStats(value: unknown, nowMs = Date.now()): Stored
   }
 
   const dailyDurationsByDate = sanitizeDailyDurations(candidate.dailyDurationsByDate);
+  const trackingCheckpoint = sanitizeTrackingCheckpoint(candidate.trackingCheckpoint);
   const updatedAtMs =
     typeof candidate.updatedAtMs === "number" && Number.isFinite(candidate.updatedAtMs)
       ? candidate.updatedAtMs
@@ -87,7 +109,8 @@ export function normalizeStoredStats(value: unknown, nowMs = Date.now()): Stored
   return {
     version: STATS_VERSION,
     dailyDurationsByDate,
-    updatedAtMs
+    updatedAtMs,
+    ...(trackingCheckpoint ? { trackingCheckpoint } : {})
   };
 }
 

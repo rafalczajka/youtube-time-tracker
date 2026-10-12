@@ -138,3 +138,18 @@ test("returns a 14-day chart series with zero-filled gaps in chronological order
     shortLabel: "14"
   });
 });
+
+test("keeps existing v3 history and the optional retry checkpoint", () => {
+  const trackingCheckpoint = { tabId: 7, windowId: 1, startedAtMs: 1_000, endMs: 31_000 };
+  const normalized = normalizeStoredStats({
+    version: 3, dailyDurationsByDate: { "2026-10-12": 30_000 }, updatedAtMs: 31_000, trackingCheckpoint
+  });
+  assert.deepEqual(normalized.dailyDurationsByDate, { "2026-10-12": 30_000 });
+  assert.deepEqual(normalized.trackingCheckpoint, trackingCheckpoint);
+
+  const withoutCheckpoint = normalizeStoredStats({
+    ...normalized, trackingCheckpoint: { ...trackingCheckpoint, endMs: "invalid" }
+  });
+  assert.equal(withoutCheckpoint.trackingCheckpoint, undefined);
+  assert.deepEqual(withoutCheckpoint.dailyDurationsByDate, normalized.dailyDurationsByDate);
+});

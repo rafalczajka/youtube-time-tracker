@@ -80,10 +80,29 @@ export async function loadStoredStats(nowMs = Date.now()): Promise<StoredStats> 
   return normalizeStoredStats(result[STATS_STORAGE_KEY], nowMs);
 }
 
-export async function appendTrackedDuration(startMs: number, endMs: number): Promise<StoredStats> {
+export async function appendTrackedDuration(session: ActiveSession, endMs: number): Promise<StoredStats> {
   const result = await chrome.storage.local.get(STATS_STORAGE_KEY);
-  const nextStats = applyDurationToStats(result[STATS_STORAGE_KEY], startMs, endMs);
+  const stats = normalizeStoredStats(result[STATS_STORAGE_KEY], endMs);
+  const checkpoint = stats.trackingCheckpoint;
+  const isSameSession = checkpoint?.tabId === session.tabId &&
+    checkpoint.windowId === session.windowId && checkpoint.startedAtMs === session.startedAtMs;
+  const startMs = Math.max(session.lastFlushedAtMs, isSameSession ? checkpoint.endMs : session.lastFlushedAtMs);
 
+  if (endMs <= startMs) {
+    return stats;
+  }
+
+  const nextStats: StoredStats = {
+    ...applyDurationToStats(stats, startMs, endMs),
+    trackingCheckpoint: {
+      tabId: session.tabId,
+      windowId: session.windowId,
+      startedAtMs: session.startedAtMs,
+      endMs
+    }
+  };
+
+  // Persist the duration and retry checkpoint together, before advancing runtime state.
   await chrome.storage.local.set({
     [STATS_STORAGE_KEY]: nextStats
   });
