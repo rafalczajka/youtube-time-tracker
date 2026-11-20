@@ -1,5 +1,6 @@
+import { getUnflushedStartMs, MAX_SESSION_GAP_MS } from "./session";
 import { splitDurationAcrossDays, toLocalDateKey } from "./time";
-import type { DailyChartPoint, StoredStats, TrackingCheckpoint } from "./types";
+import type { ActiveSession, DailyChartPoint, StoredStats, TrackingCheckpoint } from "./types";
 
 export const STATS_STORAGE_KEY = "stats";
 export const STATS_VERSION = 3 as const;
@@ -146,6 +147,20 @@ export function getTodayDurationMs(statsValue: unknown, nowMs = Date.now()): num
   const todayDateKey = toLocalDateKey(nowMs);
 
   return stats.dailyDurationsByDate[todayDateKey] ?? 0;
+}
+
+export function getLiveTodayDurationMs(stats: StoredStats, session: ActiveSession | null, nowMs: number): number {
+  const storedDurationMs = stats.dailyDurationsByDate[toLocalDateKey(nowMs)] ?? 0;
+
+  if (!session || nowMs - session.lastFlushedAtMs > MAX_SESSION_GAP_MS) {
+    return storedDurationMs;
+  }
+
+  const today = new Date(nowMs);
+  today.setHours(0, 0, 0, 0);
+  const startMs = Math.max(today.getTime(), getUnflushedStartMs(session, stats.trackingCheckpoint));
+
+  return storedDurationMs + Math.max(0, nowMs - startMs);
 }
 
 export function hasTrackedHistory(statsValue: unknown, nowMs = Date.now()): boolean {

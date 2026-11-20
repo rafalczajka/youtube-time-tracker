@@ -3,10 +3,12 @@ import test from "node:test";
 
 import {
   applyDurationToStats,
+  getLiveTodayDurationMs,
   getRecentDailySeries,
   getTodayDurationMs,
   normalizeStoredStats
 } from "../src/shared/stats";
+import { MAX_SESSION_GAP_MS } from "../src/shared/session";
 
 test("adds tracked time to the correct daily YouTube bucket", () => {
   const startMs = new Date(2026, 3, 13, 10, 0, 0).getTime();
@@ -95,6 +97,18 @@ test("returns 0 for today when the current day has no entry", () => {
   );
 
   assert.equal(todayDurationMs, 0);
+});
+
+test("live today rolls over at local midnight and ignores stale sessions", () => {
+  const startMs = new Date(2026, 3, 13, 23, 59, 55).getTime();
+  const stats = normalizeStoredStats({
+    version: 3, dailyDurationsByDate: { "2026-04-13": 120_000 }, updatedAtMs: startMs
+  });
+  const session = { tabId: 7, windowId: 1, startedAtMs: startMs, lastFlushedAtMs: startMs };
+
+  assert.equal(getLiveTodayDurationMs(stats, session, startMs + 4_000), 124_000);
+  assert.equal(getLiveTodayDurationMs(stats, session, startMs + 7_000), 2_000);
+  assert.equal(getLiveTodayDurationMs(stats, session, startMs + MAX_SESSION_GAP_MS + 1), 0);
 });
 
 test("returns a 14-day chart series with zero-filled gaps in chronological order", () => {

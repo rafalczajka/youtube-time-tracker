@@ -1,4 +1,5 @@
 import { applyDurationToStats, normalizeStoredStats, STATS_STORAGE_KEY } from "./stats";
+import { getUnflushedStartMs } from "./session";
 import type { ActiveSession, IdleState, RuntimeState, StoredStats } from "./types";
 
 const RUNTIME_STATE_STORAGE_KEY = "runtimeState";
@@ -83,10 +84,7 @@ export async function loadStoredStats(nowMs = Date.now()): Promise<StoredStats> 
 export async function appendTrackedDuration(session: ActiveSession, endMs: number): Promise<StoredStats> {
   const result = await chrome.storage.local.get(STATS_STORAGE_KEY);
   const stats = normalizeStoredStats(result[STATS_STORAGE_KEY], endMs);
-  const checkpoint = stats.trackingCheckpoint;
-  const isSameSession = checkpoint?.tabId === session.tabId &&
-    checkpoint.windowId === session.windowId && checkpoint.startedAtMs === session.startedAtMs;
-  const startMs = Math.max(session.lastFlushedAtMs, isSameSession ? checkpoint.endMs : session.lastFlushedAtMs);
+  const startMs = getUnflushedStartMs(session, stats.trackingCheckpoint);
 
   if (endMs <= startMs) {
     return stats;

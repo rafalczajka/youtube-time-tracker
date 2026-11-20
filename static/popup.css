@@ -96,7 +96,7 @@ body {
 }
 
 .today-total {
-  font-size: 38px;
+  font-size: 32px;
   line-height: 0.95;
   color: var(--accent);
   font-variant-numeric: tabular-nums;

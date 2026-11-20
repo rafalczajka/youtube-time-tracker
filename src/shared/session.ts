@@ -2,7 +2,8 @@ import type {
   ActiveSession,
   CountableContext,
   SessionFlush,
-  SessionReconcileResult
+  SessionReconcileResult,
+  TrackingCheckpoint
 } from "./types";
 
 export const MAX_SESSION_GAP_MS = 90_000;
@@ -15,6 +16,13 @@ interface ReconcileSessionInput {
 
 function sameContext(session: ActiveSession, context: CountableContext): boolean {
   return session.tabId === context.tabId && session.windowId === context.windowId;
+}
+
+export function getUnflushedStartMs(session: ActiveSession, checkpoint?: TrackingCheckpoint): number {
+  if (checkpoint && sameContext(session, checkpoint) && session.startedAtMs === checkpoint.startedAtMs) {
+    return Math.max(session.lastFlushedAtMs, checkpoint.endMs);
+  }
+  return session.lastFlushedAtMs;
 }
 
 function createSession(context: CountableContext, nowMs: number): ActiveSession {

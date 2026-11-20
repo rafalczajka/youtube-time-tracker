@@ -68,3 +68,16 @@ export function formatDuration(durationMs: number): string {
   const hours = Math.floor((durationMs % DAY_MS) / HOUR_MS);
   return `${days}d ${hours}h`;
 }
+
+export function formatLiveDuration(durationMs: number): string {
+  const hours = Math.floor(durationMs / HOUR_MS);
+  const minutes = Math.floor((durationMs % HOUR_MS) / MINUTE_MS);
+  const seconds = Math.floor((durationMs % MINUTE_MS) / SECOND_MS);
+
+  if (durationMs < MINUTE_MS) {
+    return `${seconds}s`;
+  }
+
+  const minutesAndSeconds = `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  return hours > 0 ? `${hours}h ${minutesAndSeconds}` : minutesAndSeconds;
+}

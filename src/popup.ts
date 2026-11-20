@@ -1,11 +1,17 @@
-import { STATS_STORAGE_KEY, getRecentDailySeries, getTodayDurationMs, hasTrackedHistory } from "./shared/stats";
+import { STATS_STORAGE_KEY, getLiveTodayDurationMs, getRecentDailySeries, hasTrackedHistory } from "./shared/stats";
 import { getActionBadgeState } from "./shared/action-badge";
 import { TOGGLE_TRACKING_COMMAND, matchesCommandShortcut } from "./shared/commands";
 import { loadRuntimeState, loadStoredStats } from "./shared/storage";
-import { formatDuration } from "./shared/time";
+import { formatDuration, formatLiveDuration } from "./shared/time";
 import type { DailyChartPoint, RuntimeMessage, RuntimeState, StoredStats } from "./shared/types";
 
 const HOUR_MS = 3_600_000;
+const TODAY_REFRESH_MS = 1_000;
+
+interface PopupState {
+  runtimeState: RuntimeState;
+  stats: StoredStats;
+}
 
 const countingIndicatorElement = document.querySelector<HTMLElement>("#counting-indicator");
 const countingLabelElement = document.querySelector<HTMLElement>("#counting-label");
@@ -14,6 +20,9 @@ const historyChartElement = document.querySelector<HTMLElement>("#history-chart"
 const chartEmptyStateElement = document.querySelector<HTMLElement>("#chart-empty-state");
 const pauseToggleElement = document.querySelector<HTMLButtonElement>("#pause-toggle");
 let toggleTrackingShortcut: string | null = null;
+let popupState: PopupState | undefined;
+let todayTimer: number | undefined;
+let refreshId = 0;
 
 function ensurePopupElements(): void {
   if (
@@ -36,12 +45,12 @@ async function sendRuntimeMessage(message: RuntimeMessage): Promise<void> {
   }
 }
 
-async function loadPopupState(): Promise<{
-  runtimeState: RuntimeState;
-  stats: StoredStats;
-}> {
+async function loadPopupState(): Promise<PopupState> {
   const nowMs = Date.now();
-  const [runtimeState, stats] = await Promise.all([loadRuntimeState(nowMs), loadStoredStats(nowMs)]);
+  // The worker saves stats before advancing the session. Read in reverse order
+  // so a newer session cursor never gets paired with older stats.
+  const runtimeState = await loadRuntimeState(nowMs);
+  const stats = await loadStoredStats(nowMs);
 
   return {
     runtimeState,
@@ -124,7 +133,31 @@ function renderChart(stats: StoredStats, nowMs: number): void {
   historyChartElement.replaceChildren(axis, bars);
 }
 
-function renderPopup(runtimeState: RuntimeState, stats: StoredStats): void {
+function renderTodayTotal(nowMs = Date.now()): void {
+  if (!todayTotalElement || !popupState) {
+    return;
+  }
+
+  const { runtimeState, stats } = popupState;
+  const { isCounting } = getActionBadgeState(runtimeState);
+  const session = isCounting ? runtimeState.activeSession : null;
+  const text = formatLiveDuration(getLiveTodayDurationMs(stats, session, nowMs));
+
+  if (todayTotalElement.textContent !== text) {
+    todayTotalElement.textContent = text;
+  }
+}
+
+function updateTodayTimer(isCounting: boolean): void {
+  if (isCounting && !document.hidden) {
+    todayTimer ??= window.setInterval(renderTodayTotal, TODAY_REFRESH_MS);
+  } else if (todayTimer !== undefined) {
+    window.clearInterval(todayTimer);
+    todayTimer = undefined;
+  }
+}
+
+function renderPopup({ runtimeState, stats }: PopupState): void {
   if (
     !countingIndicatorElement ||
     !countingLabelElement ||
@@ -141,14 +174,19 @@ function renderPopup(runtimeState: RuntimeState, stats: StoredStats): void {
 
   countingIndicatorElement.dataset.state = isCounting ? "active" : "inactive";
   countingLabelElement.textContent = label;
-  todayTotalElement.textContent = formatDuration(getTodayDurationMs(stats, nowMs));
+  renderTodayTotal(nowMs);
+  updateTodayTimer(isCounting);
   pauseToggleElement.textContent = runtimeState.isManuallyPaused ? "Resume" : "Pause";
   renderChart(stats, nowMs);
 }
 
 async function refreshPopup(): Promise<void> {
-  const { runtimeState, stats } = await loadPopupState();
-  renderPopup(runtimeState, stats);
+  const id = ++refreshId;
+  const state = await loadPopupState();
+  if (id === refreshId) {
+    popupState = state;
+    renderPopup(state);
+  }
 }
 
 async function initializePopup(): Promise<void> {
@@ -203,10 +241,12 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    void refreshPopup();
-    void loadToggleTrackingShortcut();
+  if (document.hidden) {
+    updateTodayTimer(false);
+    return;
   }
+  void refreshPopup();
+  void loadToggleTrackingShortcut();
 });
 
 void initializePopup();

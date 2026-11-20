@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { build } from "esbuild";
-import type { IdleState } from "../src/shared/types";
+import { toLocalDateKey } from "../src/shared/time";
+import type { IdleState, RuntimeState, StoredStats } from "../src/shared/types";
 
 const bundlePromise = build({
   entryPoints: ["src/popup.ts"], bundle: true, write: false, format: "cjs", platform: "node"
@@ -13,14 +14,20 @@ async function createPopup(shortcut: string, refreshedIdleState: IdleState = "ac
   let assignedShortcut = shortcut;
   let messages = 0;
   let refreshRequests = 0;
+  let nowMs = new Date(2026, 10, 20, 12).getTime();
+  let stats: StoredStats | undefined;
+  let tick: (() => void) | undefined;
+  class Clock extends Date {
+    static now() { return nowMs; }
+  }
   const listeners = new Map<string, (event: unknown) => void>();
   const makeElement = () => ({
     textContent: "", hidden: false, dataset: {}, style: {}, classList: { add() {} },
     append() {}, replaceChildren() {}, addEventListener() {}
   });
   const elements = new Map<string, ReturnType<typeof makeElement>>();
-  const runtimeState = {
-    activeSession: null, focusedWindowId: 1, isManuallyPaused: false, idleState: "active" as IdleState, updatedAtMs: 1_000
+  const runtimeState: RuntimeState = {
+    activeSession: null, focusedWindowId: 1, isManuallyPaused: false, idleState: "active", updatedAtMs: 1_000
   };
   const documentMock = {
     hidden: false,
@@ -33,9 +40,11 @@ async function createPopup(shortcut: string, refreshedIdleState: IdleState = "ac
   };
   const chromeMock = {
     storage: {
-      local: { get: async () => ({}) },
+      local: { get: async () => ({ stats: structuredClone(stats) }) },
       session: { get: async () => ({ runtimeState: structuredClone(runtimeState) }) },
-      onChanged: { addListener() {} }
+      onChanged: { addListener: (listener: (changes: object, area: string) => void) => {
+        listeners.set("storage", () => listener({ stats: {} }, "local"));
+      } }
     },
     commands: { getAll: async () => [{ name: "toggle-tracking", shortcut: assignedShortcut }] },
     runtime: {
@@ -55,7 +64,17 @@ async function createPopup(shortcut: string, refreshedIdleState: IdleState = "ac
   const drain = async () => {
     for (let i = 0; i < 5; i++) await new Promise<void>((resolve) => setImmediate(resolve));
   };
-  vm.runInNewContext(bundle.outputFiles[0].text, { document: documentMock, chrome: chromeMock, console });
+  const windowMock = {
+    setInterval(callback: () => void, intervalMs: number) {
+      assert.equal(intervalMs, 1_000);
+      tick = callback;
+      return 1;
+    },
+    clearInterval() { tick = undefined; }
+  };
+  vm.runInNewContext(bundle.outputFiles[0].text, {
+    document: documentMock, chrome: chromeMock, console, Date: Clock, window: windowMock
+  });
   await drain();
 
   return {
@@ -72,7 +91,20 @@ async function createPopup(shortcut: string, refreshedIdleState: IdleState = "ac
     },
     messages: () => messages,
     refreshRequests: () => refreshRequests,
-    label: () => elements.get("#counting-label")?.textContent
+    label: () => elements.get("#counting-label")?.textContent,
+    total: () => elements.get("#today-total")?.textContent,
+    isTicking: () => tick !== undefined,
+    advance(ms: number) {
+      nowMs += ms;
+      tick?.();
+    },
+    async setTracking(state: Partial<RuntimeState>, nextStats?: StoredStats) {
+      Object.assign(runtimeState, state);
+      stats = nextStats;
+      listeners.get("storage")?.({});
+      await drain();
+    },
+    now: () => nowMs
   };
 }
 
@@ -111,4 +143,28 @@ test("popup requests a fresh tracking state once and shows the reason for inacti
   assert.equal(popup.label(), "Idle");
   await popup.changeShortcut("");
   assert.equal(popup.refreshRequests(), 1);
+});
+
+test("popup ticks in seconds, reconciles a checkpoint without a jump, and freezes on pause", async () => {
+  const popup = await createPopup("");
+  const startMs = popup.now();
+  const session = { tabId: 7, windowId: 1, startedAtMs: startMs, lastFlushedAtMs: startMs };
+  const date = toLocalDateKey(startMs);
+  const stats: StoredStats = { version: 3, dailyDurationsByDate: { [date]: 59_000 }, updatedAtMs: startMs };
+  await popup.setTracking({ activeSession: session }, stats);
+  assert.equal(popup.total(), "59s");
+  popup.advance(2_000);
+  assert.equal(popup.total(), "1m 01s");
+
+  const flushedStats = {
+    ...stats,
+    dailyDurationsByDate: { [date]: 61_000 },
+    trackingCheckpoint: { ...session, endMs: popup.now() }
+  };
+  await popup.setTracking({}, flushedStats);
+  assert.equal(popup.total(), "1m 01s");
+  await popup.setTracking({ activeSession: null, isManuallyPaused: true }, flushedStats);
+  assert.equal(popup.isTicking(), false);
+  popup.advance(4_000);
+  assert.equal(popup.total(), "1m 01s");
 });
