@@ -9,11 +9,14 @@ const bundlePromise = build({
   entryPoints: ["src/background.ts"], bundle: true, write: false, format: "cjs", platform: "node"
 });
 
-async function createWorker() {
+async function createWorker({ failFirstIconLoad = false } = {}) {
   const bundle = await bundlePromise;
   let nowMs = 1_000;
   let failNextRuntimeSave = false;
   let failNextStatsSave = false;
+  let failIconLoad = failFirstIconLoad;
+  let iconUpdates = 0;
+  let actionTitle = "";
   const localData: Record<string, unknown> = {};
   const sessionData: Record<string, unknown> = {};
   const errors: unknown[] = [];
@@ -49,7 +52,10 @@ async function createWorker() {
     idle: { queryState: async () => "active", setDetectionInterval() {}, onStateChanged: event("idle") },
     alarms: { get: async () => ({ name: "stats-heartbeat" }), create() {}, onAlarm: event("alarm") },
     commands: { onCommand: event("command") },
-    action: { setBadgeText: async () => {}, setIcon: async () => {}, setTitle: async () => {} }
+    action: {
+      async setIcon() { iconUpdates++; },
+      async setTitle({ title }: { title: string }) { actionTitle = title; }
+    }
   };
   class Clock extends Date {
     static now() { return nowMs; }
@@ -65,7 +71,11 @@ async function createWorker() {
   const start = async () => {
     vm.runInNewContext(bundle.outputFiles[0].text, {
       chrome: chromeMock, Date: Clock, URL, OffscreenCanvas: Canvas,
-      fetch: async () => ({ ok: true, blob: async () => ({}) }),
+      fetch: async () => {
+        const ok = !failIconLoad;
+        failIconLoad = false;
+        return { ok, blob: async () => ({}) };
+      },
       createImageBitmap: async () => ({}),
       console: { debug() {}, error(...args: unknown[]) { errors.push(args); } }
     });
@@ -87,6 +97,13 @@ async function createWorker() {
       .reduce((sum, duration) => sum + duration, 0),
     heartbeat: () => emit("alarm", { name: "stats-heartbeat" }),
     restart: start,
+    async requestRefresh() {
+      let response: unknown;
+      await emit("message", { type: "refresh-tracking" }, {}, (value: unknown) => { response = value; });
+      return structuredClone(response);
+    },
+    iconUpdates: () => iconUpdates,
+    actionTitle: () => actionTitle,
     emit,
     errors
   };
@@ -160,4 +177,32 @@ test("queued idle events close the session even if the current query already rep
   worker.advance(30_000);
   await worker.heartbeat();
   assert.equal(worker.total(), 35_000);
+});
+
+test("popup refresh recovers a stale idle state before the next heartbeat and respects manual pause", async () => {
+  const worker = await createWorker();
+  await worker.emit("idle", "idle");
+  assert.equal(worker.runtime().activeSession, null);
+  assert.equal(worker.actionTitle(), "YouTube Time Tracker: Idle");
+
+  worker.advance(5_000);
+  assert.deepEqual(await worker.requestRefresh(), { ok: true });
+  assert.equal(worker.runtime().activeSession?.startedAtMs, 6_000);
+  assert.equal(worker.actionTitle(), "YouTube Time Tracker: counting now");
+
+  await worker.emit("message", { type: "pause-tracking" }, {}, () => {});
+  assert.deepEqual(await worker.requestRefresh(), { ok: true });
+  assert.equal(worker.runtime().activeSession, null);
+  assert.equal(worker.actionTitle(), "YouTube Time Tracker: Paused manually");
+});
+
+test("a failed icon load leaves tracking active and is retried on the next refresh", async () => {
+  const worker = await createWorker({ failFirstIconLoad: true });
+  assert.ok(worker.runtime().activeSession);
+  assert.equal(worker.actionTitle(), "YouTube Time Tracker: counting now");
+  assert.equal(worker.iconUpdates(), 0);
+  assert.equal(worker.errors.length, 1);
+
+  assert.deepEqual(await worker.requestRefresh(), { ok: true });
+  assert.equal(worker.iconUpdates(), 1);
 });

@@ -1,4 +1,5 @@
 import { STATS_STORAGE_KEY, getRecentDailySeries, getTodayDurationMs, hasTrackedHistory } from "./shared/stats";
+import { getActionBadgeState } from "./shared/action-badge";
 import { TOGGLE_TRACKING_COMMAND, matchesCommandShortcut } from "./shared/commands";
 import { loadRuntimeState, loadStoredStats } from "./shared/storage";
 import { formatDuration } from "./shared/time";
@@ -25,24 +26,12 @@ function ensurePopupElements(): void {
   }
 }
 
-function getStatusLabel(runtimeState: RuntimeState): string {
-  if (runtimeState.isManuallyPaused) {
-    return "Paused manually";
-  }
-
-  if (runtimeState.activeSession) {
-    return "Counting";
-  }
-
-  if (runtimeState.idleState === "locked" || runtimeState.idleState === "idle") {
-    return "Paused";
-  }
-
-  return "Waiting";
-}
-
 async function sendRuntimeMessage(message: RuntimeMessage): Promise<void> {
-  await chrome.runtime.sendMessage(message);
+  const response = await chrome.runtime.sendMessage(message);
+
+  if (response?.ok !== true) {
+    throw new Error(`Tracking request failed: ${message.type}`);
+  }
 }
 
 async function loadPopupState(): Promise<{
@@ -122,10 +111,10 @@ function renderPopup(runtimeState: RuntimeState, stats: StoredStats): void {
   }
 
   const nowMs = Date.now();
-  const isCounting = runtimeState.activeSession !== null && !runtimeState.isManuallyPaused;
+  const { isCounting, label } = getActionBadgeState(runtimeState);
 
   countingIndicatorElement.dataset.state = isCounting ? "active" : "inactive";
-  countingLabelElement.textContent = getStatusLabel(runtimeState);
+  countingLabelElement.textContent = label;
   todayTotalElement.textContent = formatDuration(getTodayDurationMs(stats, nowMs));
   pauseToggleElement.textContent = runtimeState.isManuallyPaused ? "Resume" : "Pause";
   renderChart(stats, nowMs);
@@ -136,8 +125,21 @@ async function refreshPopup(): Promise<void> {
   renderPopup(runtimeState, stats);
 }
 
+async function initializePopup(): Promise<void> {
+  try {
+    await sendRuntimeMessage({ type: "refresh-tracking" });
+  } catch (error) {
+    console.error("Failed to refresh tracking on popup open:", error);
+  }
+  await refreshPopup();
+}
+
 async function toggleTracking(): Promise<void> {
-  await sendRuntimeMessage({ type: "toggle-tracking" });
+  try {
+    await sendRuntimeMessage({ type: "toggle-tracking" });
+  } catch (error) {
+    console.error("Failed to toggle tracking:", error);
+  }
   await refreshPopup();
 }
 
@@ -154,8 +156,6 @@ async function loadToggleTrackingShortcut(): Promise<void> {
 }
 
 ensurePopupElements();
-void refreshPopup();
-void loadToggleTrackingShortcut();
 
 pauseToggleElement?.addEventListener("click", () => {
   void toggleTracking();
@@ -182,3 +182,6 @@ document.addEventListener("visibilitychange", () => {
     void loadToggleTrackingShortcut();
   }
 });
+
+void initializePopup();
+void loadToggleTrackingShortcut();

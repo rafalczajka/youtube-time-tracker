@@ -14,48 +14,25 @@ let operationQueue = Promise.resolve();
 const actionIconCache = new Map<string, Promise<Record<number, ImageData>>>();
 
 function enqueue(reason: string, work: () => Promise<void>) {
-  operationQueue = operationQueue
-    .then(work, work)
-    .catch((error) => {
-      console.error(`Failed during ${reason}:`, error);
-    });
-}
-
-async function syncActionBadge(isCounting: boolean): Promise<void> {
-  const runtimeState = await loadRuntimeState();
-  const badgeState = getActionBadgeState({
-    isCounting,
-    isManuallyPaused: runtimeState.isManuallyPaused
+  const operation = operationQueue.then(work);
+  operationQueue = operation.catch((error) => {
+    console.error(`Failed during ${reason}:`, error);
   });
-  const imageData = await getActionIconSet(badgeState.dotColor);
-
-  await Promise.all([
-    chrome.action.setBadgeText({
-      text: ""
-    }),
-    chrome.action.setIcon({ imageData }),
-    chrome.action.setTitle({
-      title: badgeState.title
-    })
-  ]);
+  return operation;
 }
 
 async function syncActionBadgeFromState(runtimeState: RuntimeState): Promise<void> {
-  const badgeState = getActionBadgeState({
-    isCounting: runtimeState.activeSession !== null,
-    isManuallyPaused: runtimeState.isManuallyPaused
-  });
-  const imageData = await getActionIconSet(badgeState.dotColor);
-
-  await Promise.all([
-    chrome.action.setBadgeText({
-      text: ""
-    }),
-    chrome.action.setIcon({ imageData }),
-    chrome.action.setTitle({
-      title: badgeState.title
-    })
+  const { dotColor, title } = getActionBadgeState(runtimeState);
+  const results = await Promise.allSettled([
+    getActionIconSet(dotColor).then((imageData) => chrome.action.setIcon({ imageData })),
+    chrome.action.setTitle({ title })
   ]);
+
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("Failed to update the tracking indicator:", result.reason);
+    }
+  }
 }
 
 async function getActionIconSet(dotColor: string): Promise<Record<number, ImageData>> {
@@ -65,7 +42,10 @@ async function getActionIconSet(dotColor: string): Promise<Record<number, ImageD
     return existingIconSet;
   }
 
-  const nextIconSet = buildActionIconSet(dotColor);
+  const nextIconSet = buildActionIconSet(dotColor).catch((error) => {
+    actionIconCache.delete(dotColor);
+    throw error;
+  });
   actionIconCache.set(dotColor, nextIconSet);
   return nextIconSet;
 }
@@ -211,7 +191,6 @@ async function clearManualPauseOnTabSwitch(): Promise<void> {
   };
 
   await saveRuntimeState(nextRuntimeState);
-  await syncActionBadgeFromState(nextRuntimeState);
 }
 
 async function manuallyPauseTracking(): Promise<void> {
@@ -244,7 +223,6 @@ async function manuallyResumeTracking(): Promise<void> {
   };
 
   await saveRuntimeState(nextRuntimeState);
-  await syncActionBadgeFromState(nextRuntimeState);
   await reconcileCurrentBrowserState("resume-tracking");
 }
 
@@ -279,21 +257,27 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, _sender, sendResponse) => {
-  enqueue(`runtime.onMessage:${message.type}`, async () => {
-    if (message.type === "pause-tracking") {
-      await manuallyPauseTracking();
+  const reason = `runtime.onMessage:${message.type}`;
+  const operation = enqueue(reason, async () => {
+    switch (message.type) {
+      case "pause-tracking":
+        await manuallyPauseTracking();
+        break;
+      case "resume-tracking":
+        await manuallyResumeTracking();
+        break;
+      case "toggle-tracking":
+        await toggleManualPauseTracking();
+        break;
+      case "refresh-tracking":
+        await reconcileCurrentBrowserState(reason);
+        break;
     }
-
-    if (message.type === "resume-tracking") {
-      await manuallyResumeTracking();
-    }
-
-    if (message.type === "toggle-tracking") {
-      await toggleManualPauseTracking();
-    }
-
-    sendResponse({ ok: true });
   });
+  void operation.then(
+    () => sendResponse({ ok: true }),
+    () => sendResponse({ ok: false })
+  );
 
   return true;
 });

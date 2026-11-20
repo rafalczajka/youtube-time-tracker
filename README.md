@@ -9,7 +9,7 @@ Chrome extension for tracking time spent on YouTube and visualizing daily usage 
 - Pauses tracking when Chrome reports the user as `idle` or `locked`
 - Stores usage history per local date in `YYYY-MM-DD` format
 - Shows:
-  - current status in the popup (`Counting` / `Paused`)
+  - current tracking status and the reason when tracking is inactive
   - today's tracked time
   - a 14-day bar chart with zero-filled gaps for days without usage
 - Allows pausing or resuming tracking from the popup or with `Alt+Shift+Y` (`Command+Shift+Y` on macOS)

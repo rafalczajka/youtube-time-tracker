@@ -1,33 +1,42 @@
-export interface ActionBadgeState {
+import type { RuntimeState } from "./types";
+
+const NO_ACTIVE_TAB_REASON = "No active YouTube tab";
+
+interface ActionBadgeState {
+  isCounting: boolean;
+  label: string;
   dotColor: string;
   title: string;
 }
 
-const COUNTING_BADGE_STATE: ActionBadgeState = {
-  dotColor: "#1a7f37",
-  title: "YouTube Time Tracker: counting now"
-};
-
-const MANUAL_PAUSED_BADGE_STATE: ActionBadgeState = {
-  dotColor: "#d4a017",
-  title: "YouTube Time Tracker: paused manually"
-};
-
-const INACTIVE_BADGE_STATE: ActionBadgeState = {
-  dotColor: "#d4a017",
-  title: "YouTube Time Tracker: not counting"
-};
-
-export function getActionBadgeState({
-  isCounting,
+function getInactiveReason({
+  activeSession,
+  idleState,
   isManuallyPaused
-}: {
-  isCounting: boolean;
-  isManuallyPaused: boolean;
-}): ActionBadgeState {
-  if (isCounting) {
-    return COUNTING_BADGE_STATE;
+}: Pick<RuntimeState, "activeSession" | "idleState" | "isManuallyPaused">): string | undefined {
+  if (isManuallyPaused) {
+    return "Paused manually";
   }
+  if (idleState === "locked") {
+    return "Screen locked";
+  }
+  if (idleState === "idle") {
+    return "Idle";
+  }
+  return activeSession ? undefined : NO_ACTIVE_TAB_REASON;
+}
 
-  return isManuallyPaused ? MANUAL_PAUSED_BADGE_STATE : INACTIVE_BADGE_STATE;
+export function getActionBadgeState(
+  state: Pick<RuntimeState, "activeSession" | "idleState" | "isManuallyPaused">
+): ActionBadgeState {
+  const reason = getInactiveReason(state);
+  const isCounting = reason === undefined;
+  const label = reason === NO_ACTIVE_TAB_REASON ? "No YouTube tab" : (reason ?? "Counting");
+
+  return {
+    isCounting,
+    label,
+    dotColor: isCounting ? "#1a7f37" : "#d4a017",
+    title: `YouTube Time Tracker: ${reason ?? "counting now"}`
+  };
 }

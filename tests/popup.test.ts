@@ -2,15 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { build } from "esbuild";
+import type { IdleState } from "../src/shared/types";
 
 const bundlePromise = build({
   entryPoints: ["src/popup.ts"], bundle: true, write: false, format: "cjs", platform: "node"
 });
 
-async function createPopup(shortcut: string) {
+async function createPopup(shortcut: string, refreshedIdleState: IdleState = "active") {
   const bundle = await bundlePromise;
   let assignedShortcut = shortcut;
   let messages = 0;
+  let refreshRequests = 0;
   const listeners = new Map<string, (event: unknown) => void>();
   const makeElement = () => ({
     textContent: "", hidden: false, dataset: {}, style: {}, classList: { add() {} },
@@ -18,7 +20,7 @@ async function createPopup(shortcut: string) {
   });
   const elements = new Map<string, ReturnType<typeof makeElement>>();
   const runtimeState = {
-    activeSession: null, focusedWindowId: 1, isManuallyPaused: false, idleState: "active", updatedAtMs: 1_000
+    activeSession: null, focusedWindowId: 1, isManuallyPaused: false, idleState: "active" as IdleState, updatedAtMs: 1_000
   };
   const documentMock = {
     hidden: false,
@@ -38,7 +40,12 @@ async function createPopup(shortcut: string) {
     commands: { getAll: async () => [{ name: "toggle-tracking", shortcut: assignedShortcut }] },
     runtime: {
       getManifest: () => ({ commands: { "toggle-tracking": { suggested_key: { default: "Alt+Shift+Y" } } } }),
-      sendMessage: async () => {
+      sendMessage: async ({ type }: { type: string }) => {
+        if (type === "refresh-tracking") {
+          refreshRequests++;
+          runtimeState.idleState = refreshedIdleState;
+          return { ok: true };
+        }
         messages++;
         runtimeState.isManuallyPaused = !runtimeState.isManuallyPaused;
         return { ok: true };
@@ -64,6 +71,7 @@ async function createPopup(shortcut: string) {
       await drain();
     },
     messages: () => messages,
+    refreshRequests: () => refreshRequests,
     label: () => elements.get("#counting-label")?.textContent
   };
 }
@@ -76,7 +84,7 @@ test("popup toggles once for a held shortcut and refreshes its status", async ()
   assert.equal(popup.messages(), 1);
   assert.equal(popup.label(), "Paused manually");
   await popup.keydown();
-  assert.equal(popup.label(), "Waiting");
+  assert.equal(popup.label(), "No YouTube tab");
 });
 
 test("popup does not fall back to the manifest when the shortcut has been unassigned", async () => {
@@ -94,4 +102,13 @@ test("popup follows a remapped shortcut and notices it being removed", async () 
   await popup.changeShortcut("");
   await popup.keydown("O");
   assert.equal(popup.messages(), 1);
+});
+
+test("popup requests a fresh tracking state once and shows the reason for inactivity", async () => {
+  const popup = await createPopup("", "idle");
+
+  assert.equal(popup.refreshRequests(), 1);
+  assert.equal(popup.label(), "Idle");
+  await popup.changeShortcut("");
+  assert.equal(popup.refreshRequests(), 1);
 });
