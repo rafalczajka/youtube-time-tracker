@@ -5,6 +5,8 @@ import { loadRuntimeState, loadStoredStats } from "./shared/storage";
 import { formatDuration } from "./shared/time";
 import type { DailyChartPoint, RuntimeMessage, RuntimeState, StoredStats } from "./shared/types";
 
+const HOUR_MS = 3_600_000;
+
 const countingIndicatorElement = document.querySelector<HTMLElement>("#counting-indicator");
 const countingLabelElement = document.querySelector<HTMLElement>("#counting-label");
 const todayTotalElement = document.querySelector<HTMLElement>("#today-total");
@@ -47,18 +49,25 @@ async function loadPopupState(): Promise<{
   };
 }
 
-function createChartColumn(point: DailyChartPoint, maxDurationMs: number): HTMLElement {
-  const minBarHeightPx = 6;
-  const maxBarHeightPx = 84;
+function getChartTickIntervalMs(maxDurationMs: number): number {
+  const halfDaySeconds = 43_200;
+  const tickIntervalsSeconds = [
+    1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1_800,
+    3_600, 7_200, 10_800, 21_600, halfDaySeconds
+  ];
+  const halfRangeSeconds = maxDurationMs / 2_000;
+  const intervalSeconds = tickIntervalsSeconds.find((interval) => interval >= halfRangeSeconds)
+    ?? Math.ceil(halfRangeSeconds / halfDaySeconds) * halfDaySeconds;
+
+  return intervalSeconds * 1_000;
+}
+
+function createChartColumn(point: DailyChartPoint, axisMaxMs: number): HTMLElement {
   const columnElement = document.createElement("article");
   const trackElement = document.createElement("div");
   const barElement = document.createElement("div");
   const labelElement = document.createElement("span");
   const durationMs = point.durationMs;
-  const barHeightPx =
-    maxDurationMs <= 0
-      ? minBarHeightPx
-      : Math.max(minBarHeightPx, Math.round((durationMs / maxDurationMs) * maxBarHeightPx));
 
   columnElement.className = "chart-column";
   trackElement.className = "chart-track";
@@ -70,13 +79,8 @@ function createChartColumn(point: DailyChartPoint, maxDurationMs: number): HTMLE
     columnElement.classList.add("chart-column-today");
   }
 
-  if (durationMs > 0) {
-    barElement.dataset.state = "filled";
-  } else {
-    barElement.dataset.state = "empty";
-  }
-
-  barElement.style.height = `${barHeightPx}px`;
+  barElement.dataset.state = durationMs > 0 ? "filled" : "empty";
+  barElement.style.height = `${(durationMs / axisMaxMs) * 100}%`;
   labelElement.textContent = point.shortLabel;
   trackElement.append(barElement);
   columnElement.append(trackElement, labelElement);
@@ -93,9 +97,31 @@ function renderChart(stats: StoredStats, nowMs: number): void {
   const maxDurationMs = series.reduce((maxDuration, point) => Math.max(maxDuration, point.durationMs), 0);
   const hasHistory = hasTrackedHistory(stats, nowMs);
 
-  historyChartElement.replaceChildren(...series.map((point) => createChartColumn(point, maxDurationMs)));
   historyChartElement.hidden = !hasHistory;
   chartEmptyStateElement.hidden = hasHistory;
+
+  if (!hasHistory) {
+    historyChartElement.replaceChildren();
+    return;
+  }
+
+  const intervalMs = getChartTickIntervalMs(maxDurationMs || 120_000);
+  const axisMaxMs = 2 * intervalMs;
+  const axis = document.createElement("div");
+  axis.className = "chart-axis";
+  const tickLabels = [axisMaxMs, intervalMs].map((durationMs) =>
+    durationMs % HOUR_MS === 0 ? `${durationMs / HOUR_MS}h` : formatDuration(durationMs)
+  );
+  for (const label of [...tickLabels, "0"]) {
+    const tick = document.createElement("span");
+    tick.textContent = label;
+    axis.append(tick);
+  }
+
+  const bars = document.createElement("div");
+  bars.className = "chart-bars";
+  bars.append(...series.map((point) => createChartColumn(point, axisMaxMs)));
+  historyChartElement.replaceChildren(axis, bars);
 }
 
 function renderPopup(runtimeState: RuntimeState, stats: StoredStats): void {

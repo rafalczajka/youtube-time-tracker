@@ -9,19 +9,13 @@
   <body>
     <main class="popup-shell">
       <header class="popup-header">
-        <div class="header-copy">
-          <p class="app-label">YouTube Time</p>
-          <h1>Today</h1>
-          <strong id="today-total" class="today-total">0s</strong>
+        <h1>Today</h1>
+        <div id="counting-indicator" class="tracking-status" data-state="inactive" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="counting-label">Checking...</span>
         </div>
-
-        <div class="header-controls">
-          <div id="counting-indicator" class="status-pill" data-state="inactive" aria-live="polite">
-            <span class="status-dot" aria-hidden="true"></span>
-            <span id="counting-label">Checking...</span>
-          </div>
-          <button id="pause-toggle" class="pause-toggle" type="button">Pause</button>
-        </div>
+        <strong id="today-total" class="today-total">0s</strong>
+        <button id="pause-toggle" class="pause-toggle" type="button">Pause</button>
       </header>
 
       <section class="chart-section">
