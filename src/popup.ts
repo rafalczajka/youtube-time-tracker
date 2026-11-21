@@ -2,7 +2,7 @@ import { STATS_STORAGE_KEY, getLiveTodayDurationMs, getRecentDailySeries, hasTra
 import { getActionBadgeState } from "./shared/action-badge";
 import { TOGGLE_TRACKING_COMMAND, matchesCommandShortcut } from "./shared/commands";
 import { loadRuntimeState, loadStoredStats } from "./shared/storage";
-import { formatDuration, formatLiveDuration } from "./shared/time";
+import { formatDuration, formatTodayDuration } from "./shared/time";
 import type { DailyChartPoint, RuntimeMessage, RuntimeState, StoredStats } from "./shared/types";
 
 const HOUR_MS = 3_600_000;
@@ -141,7 +141,7 @@ function renderTodayTotal(nowMs = Date.now()): void {
   const { runtimeState, stats } = popupState;
   const { isCounting } = getActionBadgeState(runtimeState);
   const session = isCounting ? runtimeState.activeSession : null;
-  const text = formatLiveDuration(getLiveTodayDurationMs(stats, session, nowMs));
+  const text = formatTodayDuration(getLiveTodayDurationMs(stats, session, nowMs));
 
   if (todayTotalElement.textContent !== text) {
     todayTotalElement.textContent = text;

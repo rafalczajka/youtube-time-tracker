@@ -145,26 +145,29 @@ test("popup requests a fresh tracking state once and shows the reason for inacti
   assert.equal(popup.refreshRequests(), 1);
 });
 
-test("popup ticks in seconds, reconciles a checkpoint without a jump, and freezes on pause", async () => {
+test("popup updates at minute boundaries, reconciles a checkpoint without a jump, and freezes on pause", async () => {
   const popup = await createPopup("");
+  assert.equal(popup.total(), "0m");
   const startMs = popup.now();
   const session = { tabId: 7, windowId: 1, startedAtMs: startMs, lastFlushedAtMs: startMs };
   const date = toLocalDateKey(startMs);
   const stats: StoredStats = { version: 3, dailyDurationsByDate: { [date]: 59_000 }, updatedAtMs: startMs };
   await popup.setTracking({ activeSession: session }, stats);
-  assert.equal(popup.total(), "59s");
-  popup.advance(2_000);
-  assert.equal(popup.total(), "1m 01s");
+  assert.equal(popup.total(), "<1m");
+  popup.advance(1_000);
+  assert.equal(popup.total(), "1m");
+  popup.advance(30_000);
+  assert.equal(popup.total(), "1m");
 
   const flushedStats = {
     ...stats,
-    dailyDurationsByDate: { [date]: 61_000 },
+    dailyDurationsByDate: { [date]: 90_000 },
     trackingCheckpoint: { ...session, endMs: popup.now() }
   };
   await popup.setTracking({}, flushedStats);
-  assert.equal(popup.total(), "1m 01s");
+  assert.equal(popup.total(), "1m");
   await popup.setTracking({ activeSession: null, isManuallyPaused: true }, flushedStats);
   assert.equal(popup.isTicking(), false);
-  popup.advance(4_000);
-  assert.equal(popup.total(), "1m 01s");
+  popup.advance(60_000);
+  assert.equal(popup.total(), "1m");
 });

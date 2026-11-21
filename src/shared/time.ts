@@ -69,15 +69,16 @@ export function formatDuration(durationMs: number): string {
   return `${days}d ${hours}h`;
 }
 
-export function formatLiveDuration(durationMs: number): string {
-  const hours = Math.floor(durationMs / HOUR_MS);
-  const minutes = Math.floor((durationMs % HOUR_MS) / MINUTE_MS);
-  const seconds = Math.floor((durationMs % MINUTE_MS) / SECOND_MS);
-
-  if (durationMs < MINUTE_MS) {
-    return `${seconds}s`;
+export function formatTodayDuration(durationMs: number): string {
+  if (durationMs <= 0) {
+    return "0m";
   }
 
-  const minutesAndSeconds = `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-  return hours > 0 ? `${hours}h ${minutesAndSeconds}` : minutesAndSeconds;
+  if (durationMs < MINUTE_MS) {
+    return "<1m";
+  }
+
+  const hours = Math.floor(durationMs / HOUR_MS);
+  const minutes = Math.floor((durationMs % HOUR_MS) / MINUTE_MS);
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
